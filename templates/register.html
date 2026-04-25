@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+
+{% block title %}注册 - 信息发布平台{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow-lg">
+                <div class="card-header bg-success text-white text-center py-4">
+                    <h3 class="mb-0">📝 用户注册</h3>
+                </div>
+                <div class="card-body p-5">
+                    <form method="POST">
+                        <div class="mb-4">
+                            <label for="username" class="form-label">用户名 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-lg" id="username" name="username" required placeholder="请输入用户名">
+                            <div class="form-text">用户名不能重复，注册后不可修改</div>
+                        </div>
+                        <div class="mb-4">
+                            <label for="email" class="form-label">邮箱</label>
+                            <input type="email" class="form-control form-control-lg" id="email" name="email" placeholder="请输入邮箱（选填）">
+                        </div>
+                        <div class="mb-4">
+                            <label for="password" class="form-label">密码 <span class="text-danger">*</span></label>
+                            <input type="password" class="form-control form-control-lg" id="password" name="password" required placeholder="请输入密码">
+                        </div>
+                        <div class="mb-4">
+                            <label for="confirm_password" class="form-label">确认密码 <span class="text-danger">*</span></label>
+                            <input type="password" class="form-control form-control-lg" id="confirm_password" name="confirm_password" required placeholder="请再次输入密码">
+                        </div>
+                        <div class="alert alert-info">
+                            <strong>注册即享：</strong> 青铜会员，可发布 2 条公告或任务
+                        </div>
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-success btn-lg">立即注册</button>
+                        </div>
+                    </form>
+                </div>
+                <div class="card-footer text-center py-3">
+                    <p class="mb-0">已有账号？<a href="{{ url_for('login') }}" class="text-primary">立即登录</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

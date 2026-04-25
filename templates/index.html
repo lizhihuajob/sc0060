@@ -1,0 +1,224 @@
+{% extends 'base.html' %}
+
+{% block title %}首页 - 信息发布平台{% endblock %}
+
+{% block content %}
+<div class="hero-section">
+    <div class="container text-center">
+        <h1 class="display-4">📢 信息发布平台</h1>
+        <p class="lead mt-3">发布公告、发布任务，让信息触达更多人</p>
+        {% if not current_user %}
+        <div class="mt-4">
+            <a href="{{ url_for('register') }}" class="btn btn-light btn-lg me-2">立即注册</a>
+            <a href="{{ url_for('login') }}" class="btn btn-outline-light btn-lg">登录</a>
+        </div>
+        {% else %}
+        <div class="mt-4">
+            <a href="{{ url_for('new_post') }}" class="btn btn-light btn-lg">发布信息</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="container mt-5">
+    <div class="row mb-5">
+        <div class="col-md-4 mb-4">
+            <div class="card feature-card h-100">
+                <div class="card-body text-center">
+                    <div class="display-4 mb-3">📝</div>
+                    <h5 class="card-title">灵活发布</h5>
+                    <p class="card-text text-muted">支持发布公告和任务，可设置可见范围，保护隐私</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-4">
+            <div class="card feature-card h-100">
+                <div class="card-body text-center">
+                    <div class="display-4 mb-3">⭐</div>
+                    <h5 class="card-title">会员等级</h5>
+                    <p class="card-text text-muted">青铜、白银、黄金、黑金、钻石，等级越高发布越多</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-4">
+            <div class="card feature-card h-100">
+                <div class="card-body text-center">
+                    <div class="display-4 mb-3">🖼️</div>
+                    <h5 class="card-title">图文并茂</h5>
+                    <p class="card-text text-muted">支持上传图片，让信息更生动，传达更清晰</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <h3 class="mb-4">
+                <i class="bi bi-newspaper"></i> 最新发布
+                {% if not current_user %}
+                <small class="text-muted">(仅显示公开信息)</small>
+                {% endif %}
+            </h3>
+            
+            {% if posts %}
+            {% for post in posts %}
+            <div class="card mb-4 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h5 class="card-title">
+                                <a href="{{ url_for('post_detail', post_id=post.id) }}" class="text-decoration-none">
+                                    {{ post.title }}
+                                </a>
+                                {% if post.is_task %}
+                                <span class="badge bg-warning text-dark ms-2">任务</span>
+                                {% else %}
+                                <span class="badge bg-info ms-2">公告</span>
+                                {% endif %}
+                            </h5>
+                            <p class="card-text text-truncate" style="max-width: 600px;">{{ post.content }}</p>
+                        </div>
+                        <div class="text-end">
+                            <span class="badge badge-{{ post.get_author().level }}">
+                                {{ post.get_author().level_name }}
+                            </span>
+                            <p class="text-muted small mb-0">{{ post.get_author().username }}</p>
+                        </div>
+                    </div>
+                    
+                    {% if post.get_images_list() %}
+                    <div class="mt-3">
+                        {% for img in post.get_images_list()[:2] %}
+                        <img src="{{ url_for('uploaded_file', filename=img) }}" class="post-image" style="max-height: 150px;">
+                        {% endfor %}
+                        {% if post.get_images_list()|length > 2 %}
+                        <span class="text-muted small">+{{ post.get_images_list()|length - 2 }} 张图片</span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <div>
+                            <span class="text-muted small">
+                                <i class="bi bi-eye"></i> {{ post.get_view_permission_name() }}
+                            </span>
+                        </div>
+                        <small class="text-muted">{{ post.created_at }}</small>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+            
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+                        <a class="page-link" href="?page={{ page - 1 }}">上一页</a>
+                    </li>
+                    <li class="page-item active">
+                        <span class="page-link">第 {{ page }} 页</span>
+                    </li>
+                    <li class="page-item {% if posts|length < 10 %}disabled{% endif %}">
+                        <a class="page-link" href="?page={{ page + 1 }}">下一页</a>
+                    </li>
+                </ul>
+            </nav>
+            {% else %}
+            <div class="text-center py-5">
+                <div class="display-1 text-muted mb-3">📭</div>
+                <h4 class="text-muted">暂无发布的信息</h4>
+                <p class="text-muted">成为第一个发布信息的人吧！</p>
+                {% if current_user %}
+                <a href="{{ url_for('new_post') }}" class="btn btn-primary mt-3">立即发布</a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="col-lg-4">
+            {% if current_user %}
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">我的信息</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="me-3">
+                            <span class="badge badge-{{ current_user.level }}" style="font-size: 1.2rem;">
+                                {{ current_user.level_name }}
+                            </span>
+                        </div>
+                        <div>
+                            <h6 class="mb-0">{{ current_user.username }}</h6>
+                            <small class="text-muted">{{ current_user.email or '未设置邮箱' }}</small>
+                        </div>
+                    </div>
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <div class="h5 mb-0">{{ current_user.posts_count }}</div>
+                            <small class="text-muted">已发布</small>
+                        </div>
+                        <div class="col-4">
+                            <div class="h5 mb-0">{{ current_user.get_available_posts() }}</div>
+                            <small class="text-muted">剩余额度</small>
+                        </div>
+                        <div class="col-4">
+                            <div class="h5 mb-0">¥{{ current_user.balance }}</div>
+                            <small class="text-muted">余额</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">会员等级说明</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        {% for key, level in Config.USER_LEVELS.items() %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>
+                                <span class="badge badge-{{ key }}">{{ level.name }}</span>
+                            </span>
+                            <div class="text-end">
+                                <div>{{ level.posts_limit }} 条发布额度</div>
+                                {% if level.price > 0 %}
+                                <small class="text-muted">¥{{ level.price }} 升级</small>
+                                {% else %}
+                                <small class="text-muted">免费</small>
+                                {% endif %}
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">可见权限说明</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled">
+                        {% for key, name in Config.VIEW_PERMISSIONS.items() %}
+                        <li class="mb-2">
+                            <strong>{{ name }}:</strong>
+                            {% if key == 'all' %}
+                            <span class="text-muted">所有人可见，包括未登录用户</span>
+                            {% elif key == 'registered' %}
+                            <span class="text-muted">仅注册用户可见</span>
+                            {% elif key == 'silver_above' %}
+                            <span class="text-muted">白银及以上会员可见</span>
+                            {% elif key == 'gold_above' %}
+                            <span class="text-muted">黄金及以上会员可见</span>
+                            {% endif %}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

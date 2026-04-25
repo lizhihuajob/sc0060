@@ -1,0 +1,160 @@
+{% extends 'base.html' %}
+
+{% block title %}个人中心 - 信息发布平台{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <h2 class="mb-4">👤 个人中心</h2>
+    
+    <div class="row">
+        <div class="col-md-4 mb-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">账户信息</h5>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-4">
+                        <div class="display-4 mb-2">
+                            <span class="badge badge-{{ current_user.level }}" style="font-size: 2rem;">
+                                {{ current_user.level_name }}
+                            </span>
+                        </div>
+                        <h4>{{ current_user.username }}</h4>
+                        <p class="text-muted mb-0">{{ current_user.email or '未设置邮箱' }}</p>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="row text-center">
+                        <div class="col-6 mb-3">
+                            <div class="h3 mb-0">{{ current_user.posts_count }}</div>
+                            <small class="text-muted">已发布</small>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <div class="h3 mb-0">{{ current_user.get_available_posts() }}</div>
+                            <small class="text-muted">剩余额度</small>
+                        </div>
+                        <div class="col-6">
+                            <div class="h3 mb-0">{{ current_user.get_posts_limit() }}</div>
+                            <small class="text-muted">总额度</small>
+                        </div>
+                        <div class="col-6">
+                            <div class="h3 mb-0">¥{{ current_user.balance }}</div>
+                            <small class="text-muted">账户余额</small>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('new_post') }}" class="btn btn-primary">发布信息</a>
+                        <a href="{{ url_for('my_posts') }}" class="btn btn-outline-primary">我的发布</a>
+                        <a href="{{ url_for('recharge') }}" class="btn btn-outline-success">充值</a>
+                        <a href="{{ url_for('upgrade') }}" class="btn btn-outline-warning">升级会员</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">会员等级说明</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>等级</th>
+                                    <th>发布额度</th>
+                                    <th>升级价格</th>
+                                    <th>状态</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% set current_index = Config.USER_LEVELS.keys()|list %}
+                                {% set user_index = current_index.index(current_user.level) %}
+                                {% for key, level in Config.USER_LEVELS.items() %}
+                                {% set index = current_index.index(key) %}
+                                <tr class="{% if key == current_user.level %}table-primary{% endif %}">
+                                    <td>
+                                        <span class="badge badge-{{ key }}">{{ level.name }}</span>
+                                    </td>
+                                    <td>{{ level.posts_limit }} 条</td>
+                                    <td>
+                                        {% if level.price > 0 %}
+                                        ¥{{ level.price }}
+                                        {% else %}
+                                        <span class="text-success">免费</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if key == current_user.level %}
+                                        <span class="badge bg-primary">当前等级</span>
+                                        {% elif index < user_index %}
+                                        <span class="badge bg-secondary">已解锁</span>
+                                        {% else %}
+                                        <span class="badge bg-light text-dark">待解锁</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="alert alert-info mt-3">
+                        <strong>提示：</strong> 下一等级的发布额度是当前等级的 2 倍。升级后余额将自动扣除对应费用。
+                    </div>
+                </div>
+            </div>
+            
+            {% if transactions %}
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">最近交易记录</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>时间</th>
+                                    <th>类型</th>
+                                    <th>金额</th>
+                                    <th>说明</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for trans in transactions %}
+                                <tr>
+                                    <td>{{ trans.created_at }}</td>
+                                    <td>
+                                        {% if trans.transaction_type == 'recharge' %}
+                                        <span class="badge bg-success">充值</span>
+                                        {% elif trans.transaction_type == 'upgrade' %}
+                                        <span class="badge bg-warning">升级</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">{{ trans.transaction_type }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="{% if trans.amount > 0 %}text-success{% else %}text-danger{% endif %}">
+                                        {% if trans.amount > 0 %}+{% endif %}{{ trans.amount }}
+                                    </td>
+                                    <td>{{ trans.description or '-' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="text-end">
+                        <a href="{{ url_for('recharge') }}" class="btn btn-link">查看全部记录</a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
