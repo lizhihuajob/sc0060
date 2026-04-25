@@ -52,7 +52,7 @@
     </div>
 
     <div class="row">
-        <div class="col-lg-8">
+        <div class="col-lg-8 posts-container">
             <h3 class="mb-4">
                 <i class="bi bi-newspaper"></i> 最新发布
                 {% if not current_user %}
@@ -109,19 +109,21 @@
             </div>
             {% endfor %}
             
-            <nav aria-label="Page navigation">
-                <ul class="pagination justify-content-center">
-                    <li class="page-item {% if page <= 1 %}disabled{% endif %}">
-                        <a class="page-link" href="?page={{ page - 1 }}">上一页</a>
-                    </li>
-                    <li class="page-item active">
-                        <span class="page-link">第 {{ page }} 页</span>
-                    </li>
-                    <li class="page-item {% if posts|length < 10 %}disabled{% endif %}">
-                        <a class="page-link" href="?page={{ page + 1 }}">下一页</a>
-                    </li>
-                </ul>
-            </nav>
+            <div class="pagination-container">
+                <nav aria-label="Page navigation">
+                    <ul class="pagination justify-content-center">
+                        <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+                            <a class="page-link" href="?page={{ page - 1 }}">上一页</a>
+                        </li>
+                        <li class="page-item active">
+                            <span class="page-link">第 {{ page }} 页</span>
+                        </li>
+                        <li class="page-item {% if posts|length < 10 %}disabled{% endif %}">
+                            <a class="page-link" href="?page={{ page + 1 }}">下一页</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
             {% else %}
             <div class="text-center py-5">
                 <div class="display-1 text-muted mb-3">📭</div>
