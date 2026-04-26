@@ -2,7 +2,7 @@ import os
 import secrets
 
 class Config:
-    SECRET_KEY = secrets.token_hex(32)
+    SECRET_KEY = os.getenv('SECRET_KEY', secrets.token_hex(32))
     BASE_DIR = os.path.abspath(os.path.dirname(__file__))
     UPLOAD_FOLDER = '/tmp/uploads'
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024
@@ -28,3 +28,5 @@ class Config:
         'silver_above': '白银以上',
         'gold_above': '黄金以上'
     }
+    
+    CORS_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173']

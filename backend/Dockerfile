@@ -17,4 +17,4 @@ RUN mkdir -p /tmp/uploads
 
 EXPOSE 5000
 
-CMD ["python", "run.py"]
+CMD ["python", "app.py"]
