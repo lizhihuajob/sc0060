@@ -24,7 +24,7 @@ def execute(query, params=None):
             result = cursor.fetchone()
             conn.commit()
             cursor.close()
-            return result[0] if result else None
+            return list(result.values())[0] if result else None
         else:
             if params:
                 cursor.execute(query, params)
