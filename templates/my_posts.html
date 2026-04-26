@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+
+{% block title %}我的发布 - 信息发布平台{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">📋 我的发布</h2>
+        <a href="{{ url_for('new_post') }}" class="btn btn-primary">发布新信息</a>
+    </div>
+    
+    <div class="alert alert-info">
+        <strong>发布统计：</strong> 已发布 {{ current_user.posts_count }} / {{ current_user.get_posts_limit() }} 条，
+        剩余 <strong>{{ current_user.get_available_posts() }}</strong> 条额度
+        {% if current_user.get_available_posts() == 0 %}
+        <span class="text-danger ms-2">额度已用完，请<a href="{{ url_for('upgrade') }}" class="alert-link">升级会员</a></span>
+        {% endif %}
+    </div>
+    
+    <div class="posts-container">
+    {% if posts %}
+    <div class="row">
+        {% for post in posts %}
+        <div class="col-md-6 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h5 class="card-title mb-0">
+                            <a href="{{ url_for('post_detail', post_id=post.id) }}" class="text-decoration-none">
+                                {{ post.title }}
+                            </a>
+                        </h5>
+                        <div>
+                            {% if post.is_task %}
+                            <span class="badge bg-warning text-dark">任务</span>
+                            {% else %}
+                            <span class="badge bg-info">公告</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <p class="card-text text-truncate" style="max-height: 60px; overflow: hidden;">
+                        {{ post.content }}
+                    </p>
+                    
+                    {% if post.get_images_list() %}
+                    <div class="mb-3">
+                        <small class="text-muted">
+                            <i class="bi bi-image"></i> {{ post.get_images_list()|length }} 张图片
+                        </small>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <small class="text-muted">
+                                <i class="bi bi-eye"></i> {{ post.get_view_permission_name() }}
+                            </small>
+                        </div>
+                        <small class="text-muted">{{ post.created_at }}</small>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent">
+                    <a href="{{ url_for('post_detail', post_id=post.id) }}" class="btn btn-outline-primary btn-sm">查看详情</a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <div class="pagination-container">
+        <nav aria-label="Page navigation">
+            <ul class="pagination justify-content-center">
+                <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+                    <a class="page-link" href="?page={{ page - 1 }}">上一页</a>
+                </li>
+                <li class="page-item active">
+                    <span class="page-link">第 {{ page }} 页</span>
+                </li>
+                <li class="page-item {% if posts|length < 10 %}disabled{% endif %}">
+                    <a class="page-link" href="?page={{ page + 1 }}">下一页</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+        <div class="display-1 text-muted mb-3">📭</div>
+        <h4 class="text-muted">暂无发布的信息</h4>
+        <p class="text-muted">您还没有发布任何公告或任务</p>
+        <a href="{{ url_for('new_post') }}" class="btn btn-primary mt-3">立即发布</a>
+    </div>
+    {% endif %}
+    </div>
+</div>
+{% endblock %}
