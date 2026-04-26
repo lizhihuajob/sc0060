@@ -86,14 +86,10 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Coin, Lock, Clock } from '@element-plus/icons-vue'
 import { userApi } from '../services/api'
+import { useUserStore } from '../stores/userStore'
 
 const router = useRouter()
-const props = defineProps({
-  user: {
-    type: Object,
-    default: null
-  }
-})
+const { user } = useUserStore()
 
 const loading = ref(false)
 const selectedAmount = ref(null)

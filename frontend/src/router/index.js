@@ -36,7 +36,7 @@ const routes = [
     path: '/new-post',
     name: 'NewPost',
     component: () => import('../views/NewPost.vue'),
-    meta: { title: '发布信息', requiresAuth: true }
+    meta: { title: '发布信息' }
   },
   {
     path: '/post/:id',
@@ -78,6 +78,11 @@ router.beforeEach(async (to, from, next) => {
 })
 
 async function checkAuth() {
+  const token = localStorage.getItem('token')
+  if (!token) {
+    return false
+  }
+  
   try {
     const response = await authApi.me()
     return response.data.success

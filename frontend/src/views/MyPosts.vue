@@ -29,7 +29,7 @@
           
           <div class="post-content">
             <h3 class="post-title">{{ post.title }}</h3>
-            <p class="post-excerpt">{{ post.content | truncate(120) }}</p>
+            <p class="post-excerpt">{{ truncate(post.content, 120) }}</p>
           </div>
 
           <div class="post-images" v-if="post.images?.length > 0">
@@ -120,21 +120,15 @@ const goToPost = (postId) => {
   router.push(`/post/${postId}`)
 }
 
+const truncate = (text, length) => {
+  if (!text) return ''
+  if (text.length <= length) return text
+  return text.slice(0, length) + '...'
+}
+
 onMounted(() => {
   loadPosts()
 })
-</script>
-
-<script>
-export default {
-  filters: {
-    truncate(text, length) {
-      if (!text) return ''
-      if (text.length <= length) return text
-      return text.slice(0, length) + '...'
-    }
-  }
-}
 </script>
 
 <style scoped>

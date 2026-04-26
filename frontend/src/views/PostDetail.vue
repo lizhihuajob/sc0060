@@ -75,7 +75,7 @@ const loading = ref(true)
 const loadPost = async () => {
   loading.value = true
   try {
-    const response = await postApi.getDetail(route.params.id)
+    const response = await postApi.getById(route.params.id)
     if (response.data.success) {
       post.value = response.data.post
     }

@@ -30,8 +30,6 @@ apiClient.interceptors.response.use(
         case 401:
           localStorage.removeItem('token')
           localStorage.removeItem('user')
-          window.dispatchEvent(new CustomEvent('auth:logout'))
-          ElMessage.error('登录已过期，请重新登录')
           break
         case 403:
           ElMessage.error('没有权限执行此操作')

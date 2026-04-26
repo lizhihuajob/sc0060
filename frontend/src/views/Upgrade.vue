@@ -113,14 +113,10 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Check, TrendCharts, Document, View } from '@element-plus/icons-vue'
 import { userApi, configApi } from '../services/api'
+import { useUserStore } from '../stores/userStore'
 
 const router = useRouter()
-const props = defineProps({
-  user: {
-    type: Object,
-    default: null
-  }
-})
+const { user } = useUserStore()
 
 const userLevels = ref({})
 const loadingLevel = ref(null)
@@ -129,7 +125,7 @@ const levelOrder = computed(() => ['bronze', 'silver', 'gold', 'black', 'diamond
 
 const loadConfig = async () => {
   try {
-    const response = await configApi.getConfig()
+    const response = await configApi.getMembership()
     if (response.data.success) {
       userLevels.value = response.data.user_levels
     }
@@ -139,25 +135,25 @@ const loadConfig = async () => {
 }
 
 const isAvailable = (levelKey) => {
-  if (!props.user) return false
-  const userIndex = levelOrder.value.indexOf(props.user.level)
+  if (!user.value) return false
+  const userIndex = levelOrder.value.indexOf(user.value.level)
   const targetIndex = levelOrder.value.indexOf(levelKey)
   return targetIndex === userIndex + 1
 }
 
 const isLocked = (levelKey) => {
-  if (!props.user) return false
-  const userIndex = levelOrder.value.indexOf(props.user.level)
+  if (!user.value) return false
+  const userIndex = levelOrder.value.indexOf(user.value.level)
   const targetIndex = levelOrder.value.indexOf(levelKey)
   return targetIndex > userIndex + 1
 }
 
 const handleUpgrade = async (levelKey, level) => {
-  if (!props.user) return
+  if (!user.value) return
   
-  if (props.user.balance < level.price) {
+  if (user.value.balance < level.price) {
     ElMessageBox.confirm(
-      `余额不足，升级${level.name}需要 ¥${level.price}，当前余额 ¥${props.user.balance}。是否前往充值？`,
+      `余额不足，升级${level.name}需要 ¥${level.price}，当前余额 ¥${user.value.balance}。是否前往充值？`,
       '余额不足',
       {
         confirmButtonText: '前往充值',

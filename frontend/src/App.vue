@@ -8,16 +8,14 @@
         </transition>
       </router-view>
     </main>
-    <AppFooter />
   </div>
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, computed } from 'vue'
+import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import AppHeader from './components/AppHeader.vue'
-import AppFooter from './components/AppFooter.vue'
 import { useUserStore } from './stores/userStore'
 
 const router = useRouter()
@@ -34,19 +32,8 @@ const handleLogout = async () => {
   }
 }
 
-const handleAuthLogout = () => {
-  clearUser()
-  ElMessage.warning('请先登录')
-  router.push('/login')
-}
-
 onMounted(() => {
   fetchUser()
-  window.addEventListener('auth:logout', handleAuthLogout)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('auth:logout', handleAuthLogout)
 })
 </script>
 

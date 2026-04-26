@@ -8,10 +8,7 @@
       
       <nav class="nav-main">
         <router-link to="/" class="nav-link" active-class="active">首页</router-link>
-        <template v-if="user">
-          <router-link to="/my-posts" class="nav-link" active-class="active">我的发布</router-link>
-          <router-link to="/new-post" class="nav-link publish-btn">发布信息</router-link>
-        </template>
+        <router-link to="/my-posts" class="nav-link" active-class="active" v-if="user">我的发布</router-link>
       </nav>
       
       <div class="nav-actions">

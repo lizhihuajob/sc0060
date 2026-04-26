@@ -111,8 +111,10 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { postApi } from '../services/api'
+import { useUserStore } from '../stores/userStore'
 
 const router = useRouter()
+const { user } = useUserStore()
 const formRef = ref(null)
 const fileList = ref([])
 const loading = ref(false)
@@ -141,6 +143,12 @@ const handleExceed = (files, fileList) => {
 
 const handleSubmit = async () => {
   if (!formRef.value) return
+  
+  if (!user.value) {
+    ElMessage.warning('请先登录后再发布信息')
+    router.push('/login')
+    return
+  }
   
   await formRef.value.validate(async (valid) => {
     if (valid) {

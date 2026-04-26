@@ -62,13 +62,16 @@ defineProps({
 .footer-content {
   padding: 40px 0;
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
   gap: 40px;
+  text-align: center;
 }
 
 .footer-brand {
   display: flex;
+  justify-content: center;
   align-items: center;
   gap: 8px;
   margin-bottom: 12px;
@@ -89,16 +92,19 @@ defineProps({
   color: var(--color-text-secondary);
   max-width: 300px;
   line-height: 1.5;
+  text-align: center;
 }
 
 .footer-links {
   display: flex;
+  justify-content: center;
   gap: 60px;
 }
 
 .link-group {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 12px;
 }
 
@@ -125,6 +131,7 @@ defineProps({
 .footer-bottom {
   border-top: 1px solid rgba(0, 0, 0, 0.08);
   padding: 16px 0;
+  text-align: center;
 }
 
 .copyright {
