@@ -1,36 +1,35 @@
-import sqlite3
-import os
+import psycopg2
 from config import Config
 
 def init_database():
-    db_path = Config.DATABASE_PATH
-    wal_path = db_path + '-wal'
-    shm_path = db_path + '-shm'
-    
-    if os.path.exists(wal_path):
-        os.remove(wal_path)
-    if os.path.exists(shm_path):
-        os.remove(shm_path)
-    
-    if os.path.exists(db_path):
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
-        table_exists = cursor.fetchone() is not None
-        conn.close()
-        if table_exists:
-            return
-    
-    conn = sqlite3.connect(db_path)
+    conn = psycopg2.connect(
+        host=Config.DATABASE_HOST,
+        port=Config.DATABASE_PORT,
+        database=Config.DATABASE_NAME,
+        user=Config.DATABASE_USER,
+        password=Config.DATABASE_PASSWORD
+    )
     cursor = conn.cursor()
     
+    cursor.execute("""
+        SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_name = 'users'
+        )
+    """)
+    table_exists = cursor.fetchone()[0]
+    
+    if table_exists:
+        conn.close()
+        return
+    
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            email TEXT,
-            level TEXT DEFAULT 'bronze',
+        CREATE TABLE users (
+            id SERIAL PRIMARY KEY,
+            username VARCHAR(255) UNIQUE NOT NULL,
+            password VARCHAR(255) NOT NULL,
+            email VARCHAR(255),
+            level VARCHAR(50) DEFAULT 'bronze',
             posts_count INTEGER DEFAULT 0,
             balance REAL DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -38,12 +37,12 @@ def init_database():
     ''')
     
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS posts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+        CREATE TABLE posts (
+            id SERIAL PRIMARY KEY,
             user_id INTEGER NOT NULL,
             title TEXT NOT NULL,
             content TEXT NOT NULL,
-            view_permission TEXT DEFAULT 'all',
+            view_permission VARCHAR(50) DEFAULT 'all',
             images TEXT,
             is_task INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -52,11 +51,11 @@ def init_database():
     ''')
     
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS transactions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+        CREATE TABLE transactions (
+            id SERIAL PRIMARY KEY,
             user_id INTEGER NOT NULL,
             amount REAL NOT NULL,
-            transaction_type TEXT NOT NULL,
+            transaction_type VARCHAR(50) NOT NULL,
             description TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users (id)

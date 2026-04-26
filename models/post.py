@@ -20,21 +20,21 @@ class Post:
         images_json = json.dumps(images) if images else None
         post_id = execute(
             '''INSERT INTO posts (user_id, title, content, view_permission, images, is_task)
-               VALUES (?, ?, ?, ?, ?, ?)''',
+               VALUES (%s, %s, %s, %s, %s, %s) RETURNING id''',
             (user_id, title, content, view_permission, images_json, is_task)
         )
         return Post.get_by_id(post_id)
     
     @staticmethod
     def get_by_id(post_id):
-        row = fetchone('SELECT * FROM posts WHERE id = ?', (post_id,))
+        row = fetchone('SELECT * FROM posts WHERE id = %s', (post_id,))
         return Post(**row) if row else None
     
     @staticmethod
     def get_by_user(user_id, limit=20, offset=0):
         rows = fetchall(
-            '''SELECT * FROM posts WHERE user_id = ? 
-               ORDER BY created_at DESC LIMIT ? OFFSET ?''',
+            '''SELECT * FROM posts WHERE user_id = %s 
+               ORDER BY created_at DESC LIMIT %s OFFSET %s''',
             (user_id, limit, offset)
         )
         return [Post(**row) for row in rows]
@@ -48,25 +48,25 @@ class Post:
         level_order = list(Config.USER_LEVELS.keys())
         user_level_index = level_order.index(user_level)
         
-        conditions = ['view_permission = ?']
+        conditions = ['view_permission = %s']
         params = ['all']
         
-        conditions.append('view_permission = ?')
+        conditions.append('view_permission = %s')
         params.append('registered')
         
         silver_index = level_order.index('silver')
         if user_level_index >= silver_index:
-            conditions.append('view_permission = ?')
+            conditions.append('view_permission = %s')
             params.append('silver_above')
         
         gold_index = level_order.index('gold')
         if user_level_index >= gold_index:
-            conditions.append('view_permission = ?')
+            conditions.append('view_permission = %s')
             params.append('gold_above')
         
         where_clause = ' OR '.join(conditions)
         query = f'''SELECT * FROM posts WHERE {where_clause} 
-                    ORDER BY created_at DESC LIMIT ? OFFSET ?'''
+                    ORDER BY created_at DESC LIMIT %s OFFSET %s'''
         params.extend([limit, offset])
         
         rows = fetchall(query, params)
@@ -75,8 +75,8 @@ class Post:
     @staticmethod
     def _get_public_posts(limit=20, offset=0):
         rows = fetchall(
-            '''SELECT * FROM posts WHERE view_permission = ? 
-               ORDER BY created_at DESC LIMIT ? OFFSET ?''',
+            '''SELECT * FROM posts WHERE view_permission = %s 
+               ORDER BY created_at DESC LIMIT %s OFFSET %s''',
             ('all', limit, offset)
         )
         return [Post(**row) for row in rows]

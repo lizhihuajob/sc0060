@@ -1,16 +1,8 @@
-import os
-import sys
-
-db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'app.db')
-wal_path = db_path + '-wal'
-shm_path = db_path + '-shm'
-
-for path in [db_path, wal_path, shm_path]:
-    if os.path.exists(path):
-        os.remove(path)
-        print(f'Removed: {path}')
-
+import time
 from init_db import init_database
+
+time.sleep(2)
+
 init_database()
 print('Database initialized successfully!')
 

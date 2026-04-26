@@ -4,10 +4,15 @@ import secrets
 class Config:
     SECRET_KEY = secrets.token_hex(32)
     BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-    DATABASE_PATH = '/tmp/app.db'
     UPLOAD_FOLDER = '/tmp/uploads'
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+    
+    DATABASE_HOST = os.getenv('DATABASE_HOST', 'localhost')
+    DATABASE_PORT = os.getenv('DATABASE_PORT', '5432')
+    DATABASE_NAME = os.getenv('DATABASE_NAME', 'appdb')
+    DATABASE_USER = os.getenv('DATABASE_USER', 'appuser')
+    DATABASE_PASSWORD = os.getenv('DATABASE_PASSWORD', 'apppassword')
     
     USER_LEVELS = {
         'bronze': {'name': '青铜', 'posts_limit': 2, 'price': 0},

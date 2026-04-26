@@ -18,21 +18,21 @@ class Transaction:
     def create(user_id, amount, transaction_type, description=None):
         trans_id = execute(
             '''INSERT INTO transactions (user_id, amount, transaction_type, description)
-               VALUES (?, ?, ?, ?)''',
+               VALUES (%s, %s, %s, %s) RETURNING id''',
             (user_id, amount, transaction_type, description)
         )
         return Transaction.get_by_id(trans_id)
     
     @staticmethod
     def get_by_id(trans_id):
-        row = fetchone('SELECT * FROM transactions WHERE id = ?', (trans_id,))
+        row = fetchone('SELECT * FROM transactions WHERE id = %s', (trans_id,))
         return Transaction(**row) if row else None
     
     @staticmethod
     def get_by_user(user_id, limit=20, offset=0):
         rows = fetchall(
-            '''SELECT * FROM transactions WHERE user_id = ? 
-               ORDER BY created_at DESC LIMIT ? OFFSET ?''',
+            '''SELECT * FROM transactions WHERE user_id = %s 
+               ORDER BY created_at DESC LIMIT %s OFFSET %s''',
             (user_id, limit, offset)
         )
         return [Transaction(**row) for row in rows]

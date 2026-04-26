@@ -17,19 +17,19 @@ class User:
     def create(username, password, email=None):
         hashed_password = generate_password_hash(password)
         user_id = execute(
-            'INSERT INTO users (username, password, email) VALUES (?, ?, ?)',
+            'INSERT INTO users (username, password, email) VALUES (%s, %s, %s) RETURNING id',
             (username, hashed_password, email)
         )
         return User.get_by_id(user_id)
     
     @staticmethod
     def get_by_id(user_id):
-        row = fetchone('SELECT * FROM users WHERE id = ?', (user_id,))
+        row = fetchone('SELECT * FROM users WHERE id = %s', (user_id,))
         return User(**row) if row else None
     
     @staticmethod
     def get_by_username(username):
-        row = fetchone('SELECT * FROM users WHERE username = ?', (username,))
+        row = fetchone('SELECT * FROM users WHERE username = %s', (username,))
         return User(**row) if row else None
     
     def check_password(self, password):
@@ -46,7 +46,7 @@ class User:
     
     def increment_posts_count(self):
         execute(
-            'UPDATE users SET posts_count = posts_count + 1 WHERE id = ?',
+            'UPDATE users SET posts_count = posts_count + 1 WHERE id = %s',
             (self.id,)
         )
         self.posts_count += 1
@@ -71,7 +71,7 @@ class User:
         
         self.balance -= level_info['price']
         execute(
-            'UPDATE users SET level = ?, balance = ? WHERE id = ?',
+            'UPDATE users SET level = %s, balance = %s WHERE id = %s',
             (new_level, self.balance, self.id)
         )
         self.level = new_level
@@ -83,7 +83,7 @@ class User:
         
         self.balance += amount
         execute(
-            'UPDATE users SET balance = balance + ? WHERE id = ?',
+            'UPDATE users SET balance = balance + %s WHERE id = %s',
             (amount, self.id)
         )
         return True
