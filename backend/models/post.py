@@ -12,6 +12,7 @@ class Post:
         self.view_permission = kwargs.get('view_permission', 'all')
         self.images = kwargs.get('images')
         self.is_task = kwargs.get('is_task', 0)
+        self.views_count = kwargs.get('views_count', 0)
         self.created_at = kwargs.get('created_at')
         self._author = None
     
@@ -104,6 +105,80 @@ class Post:
         
         return False
     
+    def is_owned_by(self, user):
+        if user is None:
+            return False
+        return self.user_id == user.id
+    
+    def increment_views(self):
+        execute(
+            'UPDATE posts SET views_count = views_count + 1 WHERE id = %s',
+            (self.id,)
+        )
+        self.views_count += 1
+        return True
+    
+    def delete(self):
+        execute('DELETE FROM posts WHERE id = %s', (self.id,))
+        return True
+    
+    @staticmethod
+    def search_posts(current_user=None, keyword=None, post_type=None, sort_by='latest', limit=20, offset=0):
+        base_conditions = []
+        params = []
+        
+        if current_user is None:
+            base_conditions.append('view_permission = %s')
+            params.append('all')
+        else:
+            user_level = current_user.level
+            level_order = list(Config.USER_LEVELS.keys())
+            user_level_index = level_order.index(user_level)
+            
+            visibility_conditions = ['view_permission = %s']
+            params.append('all')
+            
+            visibility_conditions.append('view_permission = %s')
+            params.append('registered')
+            
+            silver_index = level_order.index('silver')
+            if user_level_index >= silver_index:
+                visibility_conditions.append('view_permission = %s')
+                params.append('silver_above')
+            
+            gold_index = level_order.index('gold')
+            if user_level_index >= gold_index:
+                visibility_conditions.append('view_permission = %s')
+                params.append('gold_above')
+            
+            base_conditions.append(f'({\" OR \".join(visibility_conditions)})')
+        
+        if keyword:
+            base_conditions.append('(title ILIKE %s OR content ILIKE %s)')
+            keyword_param = f'%{keyword}%'
+            params.extend([keyword_param, keyword_param])
+        
+        if post_type is not None:
+            if post_type == 'notice':
+                base_conditions.append('is_task = %s')
+                params.append(0)
+            elif post_type == 'task':
+                base_conditions.append('is_task = %s')
+                params.append(1)
+        
+        where_clause = ' AND '.join(base_conditions) if base_conditions else '1=1'
+        
+        order_clause = 'created_at DESC'
+        if sort_by == 'hot':
+            order_clause = 'views_count DESC, created_at DESC'
+        
+        query = f'''SELECT * FROM posts WHERE {where_clause} 
+                    ORDER BY {order_clause} LIMIT %s OFFSET %s'''
+        params.extend([limit, offset])
+        
+        rows = fetchall(query, params)
+        return [Post(**row) for row in rows]
+    
     def get_author(self):
         if self._author is None:
             self._author = User.get_by_id(self.user_id)
@@ -130,6 +205,7 @@ class Post:
             'view_permission_name': self.get_view_permission_name(),
             'images': self.get_images_list(),
             'is_task': self.is_task,
+            'views_count': self.views_count,
             'created_at': self.created_at
         }
         
@@ -139,6 +215,7 @@ class Post:
                 data['author'] = {
                     'id': author.id,
                     'username': author.username,
+                    'avatar': author.avatar,
                     'level': author.level,
                     'level_name': author.get_level_info()['name']
                 }

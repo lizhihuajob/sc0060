@@ -29,6 +29,7 @@ def init_database():
             username VARCHAR(255) UNIQUE NOT NULL,
             password VARCHAR(255) NOT NULL,
             email VARCHAR(255),
+            avatar VARCHAR(255),
             level VARCHAR(50) DEFAULT 'bronze',
             posts_count INTEGER DEFAULT 0,
             balance REAL DEFAULT 0,
@@ -45,6 +46,7 @@ def init_database():
             view_permission VARCHAR(50) DEFAULT 'all',
             images TEXT,
             is_task INTEGER DEFAULT 0,
+            views_count INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users (id)
         )
@@ -62,9 +64,24 @@ def init_database():
         )
     ''')
     
+    cursor.execute('''
+        CREATE TABLE comments (
+            id SERIAL PRIMARY KEY,
+            post_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            content TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        )
+    ''')
+    
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_user_id ON posts(user_id)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_views_count ON posts(views_count)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_comments_post_id ON comments(post_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_comments_user_id ON comments(user_id)')
     
     conn.commit()
     conn.close()

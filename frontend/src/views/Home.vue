@@ -2,17 +2,44 @@
   <div class="home-page">
     <section class="posts-section">
       <div class="page-container">
-        <div class="section-header">
-          <h2 class="section-title">最新发布</h2>
-          <div class="section-stats">
-            <span class="stat-item">
-              <el-icon><Document /></el-icon>
-              公告
-            </span>
-            <span class="stat-item">
-              <el-icon><Clock /></el-icon>
-              任务
-            </span>
+        <div class="search-section">
+          <div class="search-box">
+            <el-icon><Search /></el-icon>
+            <input 
+              type="text" 
+              v-model="searchKeyword" 
+              @keyup.enter="doSearch"
+              placeholder="搜索公告标题或内容..."
+              class="search-input"
+            />
+            <button class="search-btn" @click="doSearch">搜索</button>
+          </div>
+          
+          <div class="filter-bar">
+            <div class="type-filter">
+              <span class="filter-label">类型：</span>
+              <button 
+                v-for="type in typeOptions" 
+                :key="type.value"
+                class="filter-btn"
+                :class="{ active: postType === type.value }"
+                @click="selectType(type.value)"
+              >
+                {{ type.label }}
+              </button>
+            </div>
+            <div class="sort-filter">
+              <span class="filter-label">排序：</span>
+              <button 
+                v-for="sort in sortOptions" 
+                :key="sort.value"
+                class="filter-btn"
+                :class="{ active: sortBy === sort.value }"
+                @click="selectSort(sort.value)"
+              >
+                {{ sort.label }}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -88,9 +115,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { Document, Clock, View, Loading } from '@element-plus/icons-vue'
+import { Document, Clock, View, Loading, Search, Fire } from '@element-plus/icons-vue'
 import { postApi } from '../services/api'
 
 const router = useRouter()
@@ -99,15 +126,49 @@ const loading = ref(false)
 const page = ref(1)
 const hasMore = ref(true)
 
+const searchKeyword = ref('')
+const postType = ref('all')
+const sortBy = ref('latest')
+
+const typeOptions = [
+  { value: 'all', label: '全部' },
+  { value: 'notice', label: '公告' },
+  { value: 'task', label: '任务' }
+]
+
+const sortOptions = [
+  { value: 'latest', label: '最新' },
+  { value: 'hot', label: '热门' }
+]
+
+const sectionTitle = computed(() => {
+  if (searchKeyword.value) {
+    return '搜索结果'
+  }
+  return sortBy.value === 'hot' ? '热门发布' : '最新发布'
+})
+
 const loadPosts = async (append = false) => {
   if (loading.value) return
   loading.value = true
   
   try {
-    const response = await postApi.getList({
+    const params = {
       page: page.value,
       per_page: 10
-    })
+    }
+    
+    if (searchKeyword.value) {
+      params.keyword = searchKeyword.value
+    }
+    if (postType.value !== 'all') {
+      params.type = postType.value
+    }
+    if (sortBy.value !== 'latest') {
+      params.sort = sortBy.value
+    }
+    
+    const response = await postApi.getList(params)
     
     if (response.data.success) {
       const newPosts = response.data.posts
@@ -123,6 +184,26 @@ const loadPosts = async (append = false) => {
   } finally {
     loading.value = false
   }
+}
+
+const doSearch = () => {
+  page.value = 1
+  posts.value = []
+  loadPosts(false)
+}
+
+const selectType = (type) => {
+  postType.value = type
+  page.value = 1
+  posts.value = []
+  loadPosts(false)
+}
+
+const selectSort = (sort) => {
+  sortBy.value = sort
+  page.value = 1
+  posts.value = []
+  loadPosts(false)
 }
 
 const loadMore = () => {
@@ -163,6 +244,96 @@ onMounted(() => {
 .page-container {
   max-width: 1200px;
   margin: 0 auto;
+}
+
+.search-section {
+  margin-bottom: 32px;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background: white;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 16px;
+}
+
+.search-box .el-icon {
+  font-size: 20px;
+  color: var(--color-text-secondary);
+}
+
+.search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 15px;
+  color: var(--color-text);
+  background: transparent;
+}
+
+.search-input::placeholder {
+  color: var(--color-text-secondary);
+}
+
+.search-btn {
+  padding: 8px 24px;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.search-btn:hover {
+  background: var(--color-primary-hover);
+}
+
+.filter-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.type-filter,
+.sort-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-label {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+.filter-btn {
+  padding: 6px 16px;
+  border: 1px solid var(--color-border);
+  background: white;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.filter-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.filter-btn.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
 }
 
 .section-header {

@@ -8,8 +8,22 @@
       <div class="profile-grid" v-if="user">
         <div class="profile-card card">
           <div class="profile-header">
-            <div class="avatar-placeholder">
-              <el-icon><User /></el-icon>
+            <div class="avatar-wrapper" @click="triggerAvatarUpload">
+              <div class="avatar-display">
+                <img v-if="user.avatar" :src="`/uploads/${user.avatar}`" alt="头像" class="avatar-img" />
+                <el-icon v-else><User /></el-icon>
+              </div>
+              <div class="avatar-overlay">
+                <el-icon><Camera /></el-icon>
+                <span>更换头像</span>
+              </div>
+              <input 
+                type="file" 
+                ref="avatarInput" 
+                @change="handleAvatarChange" 
+                accept="image/*"
+                style="display: none"
+              />
             </div>
             <div class="profile-info">
               <h2 class="username">{{ user.username }}</h2>
@@ -54,6 +68,46 @@
             </div>
           </div>
 
+          <div class="password-section">
+            <h3 class="section-title">修改密码</h3>
+            <form class="password-form" @submit.prevent="changePassword">
+              <div class="form-group">
+                <label class="form-label">原密码</label>
+                <input 
+                  type="password" 
+                  v-model="passwordForm.oldPassword" 
+                  class="form-input"
+                  placeholder="请输入原密码"
+                  required
+                />
+              </div>
+              <div class="form-group">
+                <label class="form-label">新密码</label>
+                <input 
+                  type="password" 
+                  v-model="passwordForm.newPassword" 
+                  class="form-input"
+                  placeholder="请输入新密码（至少6位）"
+                  required
+                />
+              </div>
+              <div class="form-group">
+                <label class="form-label">确认新密码</label>
+                <input 
+                  type="password" 
+                  v-model="passwordForm.confirmPassword" 
+                  class="form-input"
+                  placeholder="请再次输入新密码"
+                  required
+                />
+              </div>
+              <button type="submit" class="btn-primary" :disabled="changingPassword">
+                <span v-if="!changingPassword">确认修改</span>
+                <span v-else>修改中...</span>
+              </button>
+            </form>
+          </div>
+
           <div class="action-buttons">
             <router-link to="/recharge" class="btn-primary">
               <el-icon><Wallet /></el-icon>
@@ -96,12 +150,22 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { User, Wallet, TrendCharts, Plus, Minus } from '@element-plus/icons-vue'
+import { ref, reactive, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
+import { User, Wallet, TrendCharts, Plus, Minus, Camera } from '@element-plus/icons-vue'
 import { userApi } from '../services/api'
 
 const user = ref(null)
 const transactions = ref([])
+const avatarInput = ref(null)
+const uploadingAvatar = ref(false)
+const changingPassword = ref(false)
+
+const passwordForm = reactive({
+  oldPassword: '',
+  newPassword: '',
+  confirmPassword: ''
+})
 
 const loadProfile = async () => {
   try {
@@ -112,6 +176,82 @@ const loadProfile = async () => {
     }
   } catch (error) {
     console.error('加载个人信息失败:', error)
+  }
+}
+
+const triggerAvatarUpload = () => {
+  avatarInput.value?.click()
+}
+
+const handleAvatarChange = async (event) => {
+  const file = event.target.files?.[0]
+  if (!file) return
+  
+  const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif']
+  if (!allowedTypes.includes(file.type)) {
+    ElMessage.error('只支持 JPG、PNG、GIF 格式的图片')
+    return
+  }
+  
+  if (file.size > 5 * 1024 * 1024) {
+    ElMessage.error('图片大小不能超过 5MB')
+    return
+  }
+  
+  uploadingAvatar.value = true
+  try {
+    const formData = new FormData()
+    formData.append('avatar', file)
+    
+    const response = await userApi.uploadAvatar(formData)
+    if (response.data.success) {
+      ElMessage.success('头像上传成功')
+      user.value = response.data.user
+    }
+  } catch (error) {
+    console.error('上传头像失败:', error)
+  } finally {
+    uploadingAvatar.value = false
+    if (avatarInput.value) {
+      avatarInput.value.value = ''
+    }
+  }
+}
+
+const changePassword = async () => {
+  if (!passwordForm.oldPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+    ElMessage.warning('请填写所有字段')
+    return
+  }
+  
+  if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+    ElMessage.warning('两次输入的新密码不一致')
+    return
+  }
+  
+  if (passwordForm.newPassword.length < 6) {
+    ElMessage.warning('新密码长度不能少于6位')
+    return
+  }
+  
+  changingPassword.value = true
+  try {
+    const response = await userApi.changePassword({
+      old_password: passwordForm.oldPassword,
+      new_password: passwordForm.newPassword,
+      confirm_password: passwordForm.confirmPassword
+    })
+    
+    if (response.data.success) {
+      ElMessage.success('密码修改成功')
+      passwordForm.oldPassword = ''
+      passwordForm.newPassword = ''
+      passwordForm.confirmPassword = ''
+    }
+  } catch (error) {
+    console.error('修改密码失败:', error)
+  } finally {
+    changingPassword.value = false
   }
 }
 
@@ -158,7 +298,14 @@ onMounted(() => {
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
 
-.avatar-placeholder {
+.avatar-wrapper {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  cursor: pointer;
+}
+
+.avatar-display {
   width: 80px;
   height: 80px;
   border-radius: 50%;
@@ -168,6 +315,39 @@ onMounted(() => {
   justify-content: center;
   color: white;
   font-size: 36px;
+  overflow: hidden;
+}
+
+.avatar-display .avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.avatar-overlay span {
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.avatar-wrapper:hover .avatar-overlay {
+  opacity: 1;
 }
 
 .profile-info {
@@ -273,6 +453,62 @@ onMounted(() => {
   font-size: 15px;
   color: var(--color-text);
   font-weight: 500;
+}
+
+.password-section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.password-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-label {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+.form-input {
+  padding: 12px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+
+.form-input:focus {
+  border-color: var(--color-primary);
+}
+
+.form-input::placeholder {
+  color: var(--color-text-secondary);
+}
+
+.password-form .btn-primary {
+  align-self: flex-start;
+  padding: 12px 32px;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.password-form .btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .action-buttons {
