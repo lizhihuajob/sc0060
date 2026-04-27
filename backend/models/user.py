@@ -8,6 +8,7 @@ class User:
         self.username = kwargs.get('username')
         self.password = kwargs.get('password')
         self.email = kwargs.get('email')
+        self.avatar = kwargs.get('avatar')
         self.level = kwargs.get('level', 'bronze')
         self.posts_count = kwargs.get('posts_count', 0)
         self.balance = kwargs.get('balance', 0)
@@ -100,11 +101,32 @@ class User:
             }
         return None
     
+    def change_password(self, old_password, new_password):
+        if not self.check_password(old_password):
+            return False
+        
+        hashed_password = generate_password_hash(new_password)
+        execute(
+            'UPDATE users SET password = %s WHERE id = %s',
+            (hashed_password, self.id)
+        )
+        self.password = hashed_password
+        return True
+    
+    def update_avatar(self, avatar_filename):
+        execute(
+            'UPDATE users SET avatar = %s WHERE id = %s',
+            (avatar_filename, self.id)
+        )
+        self.avatar = avatar_filename
+        return True
+    
     def to_dict(self):
         return {
             'id': self.id,
             'username': self.username,
             'email': self.email,
+            'avatar': self.avatar,
             'level': self.level,
             'level_name': self.get_level_info()['name'],
             'posts_count': self.posts_count,

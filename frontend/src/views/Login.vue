@@ -62,11 +62,13 @@ import { ref, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { authApi } from '../services/api'
+import { useUserStore } from '../stores/userStore'
 
 const router = useRouter()
 const route = useRoute()
 const formRef = ref(null)
 const loading = ref(false)
+const { setUser } = useUserStore()
 
 const form = reactive({
   username: '',
@@ -92,6 +94,7 @@ const handleLogin = async () => {
       try {
         const response = await authApi.login(form)
         if (response.data.success) {
+          setUser(response.data.user)
           ElMessage.success(response.data.message)
           const redirect = route.query.redirect || '/'
           router.push(redirect)

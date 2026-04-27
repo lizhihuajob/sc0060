@@ -46,6 +46,9 @@
 
           <div class="post-footer">
             <span class="post-time">{{ post.created_at }}</span>
+            <button class="delete-btn" @click="deletePost(post, $event)" title="删除">
+              <el-icon><Delete /></el-icon>
+            </button>
           </div>
         </div>
       </div>
@@ -76,7 +79,8 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Edit, Loading } from '@element-plus/icons-vue'
+import { ElMessageBox, ElMessage } from 'element-plus'
+import { Edit, Loading, Delete } from '@element-plus/icons-vue'
 import { postApi } from '../services/api'
 
 const router = useRouter()
@@ -90,7 +94,7 @@ const loadPosts = async (append = false) => {
   loading.value = true
   
   try {
-    const response = await postApi.getMyPosts({
+    const response = await postApi.getMy({
       page: page.value,
       per_page: 10
     })
@@ -118,6 +122,32 @@ const loadMore = () => {
 
 const goToPost = (postId) => {
   router.push(`/post/${postId}`)
+}
+
+const deletePost = async (post, event) => {
+  event.stopPropagation()
+  
+  try {
+    await ElMessageBox.confirm(
+      '确定要删除这条公告吗？删除后无法恢复。',
+      '确认删除',
+      {
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    const response = await postApi.delete(post.id)
+    if (response.data.success) {
+      ElMessage.success('删除成功')
+      posts.value = posts.value.filter(p => p.id !== post.id)
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除失败:', error)
+    }
+  }
 }
 
 const truncate = (text, length) => {
@@ -267,11 +297,33 @@ onMounted(() => {
 .post-footer {
   padding-top: 12px;
   border-top: 1px solid rgba(0, 0, 0, 0.04);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .post-time {
   font-size: 13px;
   color: var(--color-text-secondary);
+}
+
+.delete-btn {
+  padding: 4px 8px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.delete-btn:hover {
+  color: var(--color-danger);
+  background: rgba(255, 59, 48, 0.1);
 }
 
 .empty-state {

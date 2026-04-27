@@ -9,7 +9,7 @@ from config import Config
 from init_db import init_database
 init_database()
 
-from models import User, Post, Transaction
+from models import User, Post, Transaction, Comment
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -52,9 +52,6 @@ def get_current_user_info():
 
 @app.route('/api/auth/register', methods=['POST'])
 def register():
-    if 'user_id' in session:
-        return jsonify({'success': False, 'message': '已登录'}), 400
-    
     data = request.get_json()
     username = data.get('username', '').strip()
     password = data.get('password', '')
@@ -71,6 +68,7 @@ def register():
         return jsonify({'success': False, 'message': '用户名已存在'}), 400
     
     user = User.create(username, password, email)
+    session.pop('user_id', None)
     session['user_id'] = user.id
     
     return jsonify({
@@ -81,9 +79,6 @@ def register():
 
 @app.route('/api/auth/login', methods=['POST'])
 def login():
-    if 'user_id' in session:
-        return jsonify({'success': False, 'message': '已登录'}), 400
-    
     data = request.get_json()
     username = data.get('username', '').strip()
     password = data.get('password', '')
@@ -94,6 +89,7 @@ def login():
     user = User.get_by_username(username)
     
     if user and user.check_password(password):
+        session.pop('user_id', None)
         session['user_id'] = user.id
         return jsonify({
             'success': True,
@@ -114,8 +110,24 @@ def get_posts():
     per_page = request.args.get('per_page', 10, type=int)
     offset = (page - 1) * per_page
     
-    current_user = get_current_user()
-    posts = Post.get_visible_posts(current_user, limit=per_page, offset=offset)
+    keyword = request.args.get('keyword', '').strip()
+    post_type = request.args.get('type', 'all')
+    sort_by = request.args.get('sort', 'latest')
+    
+    if not keyword and post_type == 'all' and sort_by == 'latest':
+        current_user = get_current_user()
+        posts = Post.get_visible_posts(current_user, limit=per_page, offset=offset)
+    else:
+        current_user = get_current_user()
+        search_type = None if post_type == 'all' else post_type
+        posts = Post.search_posts(
+            current_user=current_user,
+            keyword=keyword if keyword else None,
+            post_type=search_type,
+            sort_by=sort_by,
+            limit=per_page,
+            offset=offset
+        )
     
     return jsonify({
         'success': True,
@@ -136,9 +148,15 @@ def get_post_detail(post_id):
     if not post.is_visible_to(current_user):
         return jsonify({'success': False, 'message': '您没有权限查看该公告'}), 403
     
+    post.increment_views()
+    comments = Comment.get_by_post(post_id)
+    comments_count = Comment.count_by_post(post_id)
+    
     return jsonify({
         'success': True,
-        'post': post.to_dict(include_author=True)
+        'post': post.to_dict(include_author=True),
+        'comments': [c.to_dict(include_author=True) for c in comments],
+        'comments_count': comments_count
     })
 
 @app.route('/api/posts/my', methods=['GET'])
@@ -204,6 +222,98 @@ def create_post():
         'success': True,
         'message': '任务发布成功！' if is_task else '公告发布成功！',
         'post': post.to_dict(include_author=True)
+    })
+
+@app.route('/api/posts/<int:post_id>', methods=['DELETE'])
+@login_required
+def delete_post(post_id):
+    user = get_current_user()
+    post = Post.get_by_id(post_id)
+    
+    if not post:
+        return jsonify({'success': False, 'message': '该公告不存在'}), 404
+    
+    if not post.is_owned_by(user):
+        return jsonify({'success': False, 'message': '您没有权限删除该公告'}), 403
+    
+    post.delete()
+    
+    return jsonify({
+        'success': True,
+        'message': '删除成功'
+    })
+
+@app.route('/api/posts/<int:post_id>/comments', methods=['GET'])
+def get_post_comments(post_id):
+    post = Post.get_by_id(post_id)
+    
+    if not post:
+        return jsonify({'success': False, 'message': '该公告不存在'}), 404
+    
+    current_user = get_current_user()
+    if not post.is_visible_to(current_user):
+        return jsonify({'success': False, 'message': '您没有权限查看该公告'}), 403
+    
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    offset = (page - 1) * per_page
+    
+    comments = Comment.get_by_post(post_id, limit=per_page, offset=offset)
+    
+    return jsonify({
+        'success': True,
+        'comments': [c.to_dict(include_author=True) for c in comments],
+        'page': page,
+        'per_page': per_page,
+        'has_more': len(comments) >= per_page
+    })
+
+@app.route('/api/posts/<int:post_id>/comments', methods=['POST'])
+@login_required
+def create_comment(post_id):
+    user = get_current_user()
+    post = Post.get_by_id(post_id)
+    
+    if not post:
+        return jsonify({'success': False, 'message': '该公告不存在'}), 404
+    
+    if not post.is_visible_to(user):
+        return jsonify({'success': False, 'message': '您没有权限查看该公告'}), 403
+    
+    data = request.get_json()
+    content = data.get('content', '').strip()
+    
+    if not content:
+        return jsonify({'success': False, 'message': '留言内容不能为空'}), 400
+    
+    comment = Comment.create(post_id, user.id, content)
+    
+    return jsonify({
+        'success': True,
+        'message': '留言成功',
+        'comment': comment.to_dict(include_author=True)
+    })
+
+@app.route('/api/posts/<int:post_id>/comments/<int:comment_id>', methods=['DELETE'])
+@login_required
+def delete_comment(post_id, comment_id):
+    user = get_current_user()
+    comment = Comment.get_by_id(comment_id)
+    
+    if not comment:
+        return jsonify({'success': False, 'message': '该留言不存在'}), 404
+    
+    if comment.post_id != post_id:
+        return jsonify({'success': False, 'message': '参数错误'}), 400
+    
+    if not comment.is_owned_by(user):
+        return jsonify({'success': False, 'message': '您没有权限删除该留言'}), 403
+    
+    comment.delete()
+    
+    return jsonify({
+        'success': True,
+        'message': '留言已删除'
     })
 
 @app.route('/api/user/profile', methods=['GET'])
@@ -284,6 +394,63 @@ def recharge():
         'message': f'充值成功！已到账 {amount} 元',
         'user': user.to_dict()
     })
+
+@app.route('/api/user/avatar', methods=['POST'])
+@login_required
+def upload_avatar():
+    user = get_current_user()
+    
+    if 'avatar' not in request.files:
+        return jsonify({'success': False, 'message': '没有上传文件'}), 400
+    
+    file = request.files['avatar']
+    
+    if file.filename == '':
+        return jsonify({'success': False, 'message': '没有选择文件'}), 400
+    
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        unique_filename = f"{uuid.uuid4()}_{filename}"
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+        file.save(filepath)
+        
+        user.update_avatar(unique_filename)
+        
+        return jsonify({
+            'success': True,
+            'message': '头像上传成功',
+            'avatar': unique_filename,
+            'user': user.to_dict()
+        })
+    
+    return jsonify({'success': False, 'message': '文件类型不支持'}), 400
+
+@app.route('/api/user/password', methods=['PUT'])
+@login_required
+def change_password():
+    user = get_current_user()
+    
+    data = request.get_json()
+    old_password = data.get('old_password', '')
+    new_password = data.get('new_password', '')
+    confirm_password = data.get('confirm_password', '')
+    
+    if not old_password or not new_password or not confirm_password:
+        return jsonify({'success': False, 'message': '请填写所有必填字段'}), 400
+    
+    if new_password != confirm_password:
+        return jsonify({'success': False, 'message': '两次输入的新密码不一致'}), 400
+    
+    if len(new_password) < 6:
+        return jsonify({'success': False, 'message': '新密码长度不能少于6位'}), 400
+    
+    if user.change_password(old_password, new_password):
+        return jsonify({
+            'success': True,
+            'message': '密码修改成功'
+        })
+    else:
+        return jsonify({'success': False, 'message': '原密码错误'}), 400
 
 @app.route('/api/uploads/<filename>')
 def uploaded_file(filename):

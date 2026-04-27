@@ -59,6 +59,7 @@ export const authApi = {
 
 export const postApi = {
   getList: (params) => apiClient.get('/posts', { params }),
+  search: (params) => apiClient.get('/posts', { params }),
   getMy: (params) => apiClient.get('/posts/my', { params }),
   getById: (id) => apiClient.get(`/posts/${id}`),
   create: (data) => apiClient.post('/posts', data, {
@@ -67,17 +68,24 @@ export const postApi = {
   update: (id, data) => apiClient.put(`/posts/${id}`, data, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
-  delete: (id) => apiClient.delete(`/posts/${id}`)
+  delete: (id) => apiClient.delete(`/posts/${id}`),
+  getComments: (postId, params) => apiClient.get(`/posts/${postId}/comments`, { params }),
+  createComment: (postId, data) => apiClient.post(`/posts/${postId}/comments`, data),
+  deleteComment: (postId, commentId) => apiClient.delete(`/posts/${postId}/comments/${commentId}`)
 }
 
 export const userApi = {
   getProfile: () => apiClient.get('/user/profile'),
   recharge: (amount) => apiClient.post('/user/recharge', { amount }),
-  upgrade: (targetLevel) => apiClient.post('/user/upgrade', { target_level: targetLevel })
+  upgrade: (targetLevel) => apiClient.post('/user/upgrade', { target_level: targetLevel }),
+  uploadAvatar: (data) => apiClient.post('/user/avatar', data, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  changePassword: (data) => apiClient.put('/user/password', data)
 }
 
 export const configApi = {
-  getMembership: () => apiClient.get('/config/membership')
+  getMembership: () => apiClient.get('/config')
 }
 
 export default apiClient

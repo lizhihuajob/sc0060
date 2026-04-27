@@ -83,10 +83,12 @@ import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { authApi } from '../services/api'
+import { useUserStore } from '../stores/userStore'
 
 const router = useRouter()
 const formRef = ref(null)
 const loading = ref(false)
+const { setUser } = useUserStore()
 
 const form = reactive({
   username: '',
@@ -135,6 +137,7 @@ const handleRegister = async () => {
           confirm_password: form.confirmPassword
         })
         if (response.data.success) {
+          setUser(response.data.user)
           ElMessage.success(response.data.message)
           router.push('/')
         }

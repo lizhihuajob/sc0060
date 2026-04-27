@@ -43,6 +43,85 @@
             <el-icon><View /></el-icon>
             <span>可见范围：{{ post.view_permission_name }}</span>
           </div>
+          <div class="view-info">
+            <el-icon><View /></el-icon>
+            <span>{{ post.views_count }} 次浏览</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="comments-section card" v-if="post">
+        <div class="comments-header">
+          <h3 class="comments-title">
+            <el-icon><ChatDotRound /></el-icon>
+            留言互动 ({{ commentsCount }})
+          </h3>
+        </div>
+
+        <div class="comment-form" v-if="currentUser">
+          <div class="form-header">
+            <div class="user-avatar-small">
+              <img v-if="currentUser.avatar" :src="`/uploads/${currentUser.avatar}`" alt="头像" class="avatar-img" />
+              <el-icon v-else><User /></el-icon>
+            </div>
+            <span class="user-name">{{ currentUser.username }}</span>
+          </div>
+          <textarea 
+            v-model="newComment" 
+            placeholder="说点什么..." 
+            class="comment-textarea"
+            rows="3"
+          ></textarea>
+          <div class="form-actions">
+            <span class="char-count">{{ newComment.length }}/500</span>
+            <button class="btn-primary" @click="submitComment" :disabled="!newComment.trim() || submitting">
+              <span v-if="!submitting">发布留言</span>
+              <span v-else>发布中...</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="login-prompt" v-else>
+          <p>登录后即可参与留言互动</p>
+          <router-link to="/login" class="btn-primary">立即登录</router-link>
+        </div>
+
+        <div class="comments-list" v-if="comments.length > 0">
+          <div v-for="comment in comments" :key="comment.id" class="comment-item">
+            <div class="comment-header">
+              <div class="comment-avatar">
+                <img v-if="comment.author?.avatar" :src="`/uploads/${comment.author?.avatar}`" alt="头像" class="avatar-img" />
+                <el-icon v-else><User /></el-icon>
+              </div>
+              <div class="comment-info">
+                <div class="comment-author">
+                  <span class="author-name">{{ comment.author?.username }}</span>
+                  <span class="level-badge" :class="comment.author?.level">{{ comment.author?.level_name }}</span>
+                </div>
+                <span class="comment-time">{{ formatTime(comment.created_at) }}</span>
+              </div>
+              <button 
+                v-if="currentUser && comment.user_id === currentUser.id"
+                class="delete-comment-btn" 
+                @click="deleteComment(comment)"
+                title="删除留言"
+              >
+                <el-icon><Delete /></el-icon>
+              </button>
+            </div>
+            <div class="comment-content">
+              <p>{{ comment.content }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="empty-comments" v-else-if="!loadingComments">
+          <div class="empty-icon">💬</div>
+          <p>暂无留言，快来抢沙发吧！</p>
+        </div>
+
+        <div class="loading-comments" v-else>
+          <el-icon class="loading-icon"><Loading /></el-icon>
         </div>
       </div>
 
@@ -64,13 +143,20 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ArrowLeft, View, Loading } from '@element-plus/icons-vue'
-import { postApi } from '../services/api'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { ArrowLeft, View, Loading, ChatDotRound, User, Delete } from '@element-plus/icons-vue'
+import { postApi, authApi } from '../services/api'
 
 const router = useRouter()
 const route = useRoute()
 const post = ref(null)
 const loading = ref(true)
+const currentUser = ref(null)
+const comments = ref([])
+const commentsCount = ref(0)
+const loadingComments = ref(false)
+const newComment = ref('')
+const submitting = ref(false)
 
 const loadPost = async () => {
   loading.value = true
@@ -78,6 +164,8 @@ const loadPost = async () => {
     const response = await postApi.getById(route.params.id)
     if (response.data.success) {
       post.value = response.data.post
+      comments.value = response.data.comments || []
+      commentsCount.value = response.data.comments_count || 0
     }
   } catch (error) {
     console.error('加载帖子失败:', error)
@@ -86,8 +174,72 @@ const loadPost = async () => {
   }
 }
 
+const loadCurrentUser = async () => {
+  try {
+    const response = await authApi.me()
+    if (response.data.success) {
+      currentUser.value = response.data.user
+    }
+  } catch {
+    currentUser.value = null
+  }
+}
+
+const submitComment = async () => {
+  if (!newComment.value.trim() || submitting.value) return
+  
+  submitting.value = true
+  try {
+    const response = await postApi.createComment(route.params.id, {
+      content: newComment.value.trim()
+    })
+    
+    if (response.data.success) {
+      ElMessage.success('留言成功')
+      newComment.value = ''
+      comments.value = [response.data.comment, ...comments.value]
+      commentsCount.value++
+    }
+  } catch (error) {
+    console.error('提交留言失败:', error)
+  } finally {
+    submitting.value = false
+  }
+}
+
+const deleteComment = async (comment) => {
+  try {
+    await ElMessageBox.confirm(
+      '确定要删除这条留言吗？',
+      '确认删除',
+      {
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    const response = await postApi.deleteComment(route.params.id, comment.id)
+    if (response.data.success) {
+      ElMessage.success('删除成功')
+      comments.value = comments.value.filter(c => c.id !== comment.id)
+      commentsCount.value--
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除留言失败:', error)
+    }
+  }
+}
+
+const formatTime = (time) => {
+  if (!time) return ''
+  return time.replace(' GMT', '')
+}
+
 onMounted(() => {
   loadPost()
+  loadCurrentUser()
 })
 </script>
 
@@ -240,12 +392,203 @@ onMounted(() => {
 .post-footer {
   padding-top: 24px;
   border-top: 1px solid rgba(0, 0, 0, 0.08);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
-.permission-info {
+.permission-info,
+.view-info {
   display: flex;
   align-items: center;
   gap: 8px;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+.comments-section {
+  margin-top: 24px;
+  padding: 32px;
+  max-width: 800px;
+}
+
+.comments-header {
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.comments-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--color-text);
+}
+
+.comment-form {
+  margin-bottom: 32px;
+}
+
+.form-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.user-avatar-small,
+.comment-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-primary) 0%, #5856d6 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 18px;
+  overflow: hidden;
+}
+
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.user-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.comment-textarea {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+
+.comment-textarea:focus {
+  border-color: var(--color-primary);
+}
+
+.comment-textarea::placeholder {
+  color: var(--color-text-secondary);
+}
+
+.form-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.char-count {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.login-prompt {
+  text-align: center;
+  padding: 32px;
+  background: var(--color-background);
+  border-radius: var(--radius-md);
+  margin-bottom: 32px;
+}
+
+.login-prompt p {
+  margin: 0 0 16px 0;
+  color: var(--color-text-secondary);
+}
+
+.comments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.comment-item {
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.comment-item:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.comment-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.comment-info {
+  flex: 1;
+}
+
+.comment-author {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.comment-time {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.delete-comment-btn {
+  padding: 4px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.delete-comment-btn:hover {
+  color: var(--color-danger);
+  background: rgba(255, 59, 48, 0.1);
+}
+
+.comment-content {
+  margin-left: 52px;
+}
+
+.comment-content p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-text);
+  white-space: pre-wrap;
+}
+
+.empty-comments,
+.loading-comments {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.empty-comments .empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.empty-comments p {
+  margin: 0;
   font-size: 14px;
   color: var(--color-text-secondary);
 }
