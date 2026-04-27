@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { authApi } from '../services/api'
+import { useUserStore } from '../stores/userStore'
 
 const routes = [
   {
@@ -63,32 +64,38 @@ const router = createRouter({
   routes
 })
 
+let authChecked = false
+
 router.beforeEach(async (to, from, next) => {
   document.title = to.meta.title ? `${to.meta.title} - 信息发布平台` : '信息发布平台'
   
-  const isAuthenticated = await checkAuth()
+  const { user, isLoading, fetchUser, clearUser } = useUserStore()
+  
+  if (!authChecked && !isLoading.value) {
+    await fetchUser()
+    authChecked = true
+  }
+  
+  const isAuthenticated = user.value !== null
   
   if (to.meta.requiresAuth && !isAuthenticated) {
-    next({ name: 'Login', query: { redirect: to.fullPath } })
+    try {
+      const response = await authApi.me()
+      if (response.data.success) {
+        next()
+      } else {
+        clearUser()
+        next({ name: 'Login', query: { redirect: to.fullPath } })
+      }
+    } catch {
+      clearUser()
+      next({ name: 'Login', query: { redirect: to.fullPath } })
+    }
   } else if (to.meta.guestOnly && isAuthenticated) {
     next({ name: 'Home' })
   } else {
     next()
   }
 })
-
-async function checkAuth() {
-  const token = localStorage.getItem('token')
-  if (!token) {
-    return false
-  }
-  
-  try {
-    const response = await authApi.me()
-    return response.data.success
-  } catch {
-    return false
-  }
-}
 
 export default router

@@ -52,9 +52,6 @@ def get_current_user_info():
 
 @app.route('/api/auth/register', methods=['POST'])
 def register():
-    if 'user_id' in session:
-        return jsonify({'success': False, 'message': '已登录'}), 400
-    
     data = request.get_json()
     username = data.get('username', '').strip()
     password = data.get('password', '')
@@ -71,6 +68,7 @@ def register():
         return jsonify({'success': False, 'message': '用户名已存在'}), 400
     
     user = User.create(username, password, email)
+    session.pop('user_id', None)
     session['user_id'] = user.id
     
     return jsonify({
@@ -81,9 +79,6 @@ def register():
 
 @app.route('/api/auth/login', methods=['POST'])
 def login():
-    if 'user_id' in session:
-        return jsonify({'success': False, 'message': '已登录'}), 400
-    
     data = request.get_json()
     username = data.get('username', '').strip()
     password = data.get('password', '')
@@ -94,6 +89,7 @@ def login():
     user = User.get_by_username(username)
     
     if user and user.check_password(password):
+        session.pop('user_id', None)
         session['user_id'] = user.id
         return jsonify({
             'success': True,

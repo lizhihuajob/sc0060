@@ -17,13 +17,14 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import AppHeader from './components/AppHeader.vue'
 import { useUserStore } from './stores/userStore'
+import { authApi } from './services/api'
 
 const router = useRouter()
 const { user, fetchUser, clearUser } = useUserStore()
 
 const handleLogout = async () => {
   try {
-    await fetchUser()
+    await authApi.logout()
     clearUser()
     ElMessage.success('已退出登录')
     router.push('/')
