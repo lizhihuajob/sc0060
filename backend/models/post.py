@@ -151,7 +151,8 @@ class Post:
                 visibility_conditions.append('view_permission = %s')
                 params.append('gold_above')
             
-            base_conditions.append(f'({\" OR \".join(visibility_conditions)})')
+            visibility_str = ' OR '.join(visibility_conditions)
+            base_conditions.append(f'({visibility_str})')
         
         if keyword:
             base_conditions.append('(title ILIKE %s OR content ILIKE %s)')
