@@ -85,7 +85,7 @@ export const userApi = {
 }
 
 export const configApi = {
-  getMembership: () => apiClient.get('/config/membership')
+  getMembership: () => apiClient.get('/config')
 }
 
 export default apiClient

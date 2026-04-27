@@ -1,6 +1,15 @@
 import psycopg2
 from config import Config
 
+def column_exists(cursor, table_name, column_name):
+    cursor.execute("""
+        SELECT EXISTS (
+            SELECT FROM information_schema.columns 
+            WHERE table_name = %s AND column_name = %s
+        )
+    """, (table_name, column_name))
+    return cursor.fetchone()[0]
+
 def init_database():
     conn = psycopg2.connect(
         host=Config.DATABASE_HOST,
@@ -20,6 +29,12 @@ def init_database():
     table_exists = cursor.fetchone()[0]
     
     if table_exists:
+        if not column_exists(cursor, 'posts', 'views_count'):
+            cursor.execute('ALTER TABLE posts ADD COLUMN views_count INTEGER DEFAULT 0')
+            print('Added missing column: posts.views_count')
+        
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_views_count ON posts(views_count)')
+        conn.commit()
         conn.close()
         return
     
