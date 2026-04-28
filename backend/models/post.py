@@ -13,6 +13,9 @@ class Post:
         self.images = kwargs.get('images')
         self.is_task = kwargs.get('is_task', 0)
         self.views_count = kwargs.get('views_count', 0)
+        self.is_pinned = kwargs.get('is_pinned', 0)
+        self.pinned_at = kwargs.get('pinned_at')
+        self.pin_expires_at = kwargs.get('pin_expires_at')
         self.created_at = kwargs.get('created_at')
         self._author = None
     
@@ -65,7 +68,9 @@ class Post:
             conditions.append('view_permission = %s')
             params.append('gold_above')
         
-        where_clause = ' OR '.join(conditions)
+        conditions.append('(is_pinned = 0 OR is_pinned IS NULL)')
+        
+        where_clause = ' OR '.join(conditions[:-1]) + ' AND ' + conditions[-1]
         query = f'''SELECT * FROM posts WHERE {where_clause} 
                     ORDER BY created_at DESC LIMIT %s OFFSET %s'''
         params.extend([limit, offset])
@@ -76,7 +81,8 @@ class Post:
     @staticmethod
     def _get_public_posts(limit=20, offset=0):
         rows = fetchall(
-            '''SELECT * FROM posts WHERE view_permission = %s 
+            '''SELECT * FROM posts 
+               WHERE view_permission = %s AND (is_pinned = 0 OR is_pinned IS NULL)
                ORDER BY created_at DESC LIMIT %s OFFSET %s''',
             ('all', limit, offset)
         )
@@ -122,9 +128,86 @@ class Post:
         execute('DELETE FROM posts WHERE id = %s', (self.id,))
         return True
     
+    def pin(self, duration_days=7):
+        from datetime import datetime, timedelta
+        now = datetime.now()
+        expires_at = now + timedelta(days=duration_days)
+        execute(
+            '''UPDATE posts SET is_pinned = %s, pinned_at = %s, pin_expires_at = %s WHERE id = %s''',
+            (1, now, expires_at, self.id)
+        )
+        self.is_pinned = 1
+        self.pinned_at = now
+        self.pin_expires_at = expires_at
+        return True
+    
+    def unpin(self):
+        execute(
+            '''UPDATE posts SET is_pinned = %s, pinned_at = %s, pin_expires_at = %s WHERE id = %s''',
+            (0, None, None, self.id)
+        )
+        self.is_pinned = 0
+        self.pinned_at = None
+        self.pin_expires_at = None
+        return True
+    
+    @staticmethod
+    def get_active_pinned_posts(current_user=None, limit=3):
+        from datetime import datetime
+        now = datetime.now()
+        
+        base_conditions = ['is_pinned = 1', '(pin_expires_at IS NULL OR pin_expires_at > %s)']
+        params = [now]
+        
+        if current_user is None:
+            base_conditions.append('view_permission = %s')
+            params.append('all')
+        else:
+            user_level = current_user.level
+            level_order = list(Config.USER_LEVELS.keys())
+            user_level_index = level_order.index(user_level)
+            
+            visibility_conditions = ['view_permission = %s']
+            params.append('all')
+            
+            visibility_conditions.append('view_permission = %s')
+            params.append('registered')
+            
+            silver_index = level_order.index('silver')
+            if user_level_index >= silver_index:
+                visibility_conditions.append('view_permission = %s')
+                params.append('silver_above')
+            
+            gold_index = level_order.index('gold')
+            if user_level_index >= gold_index:
+                visibility_conditions.append('view_permission = %s')
+                params.append('gold_above')
+            
+            visibility_str = ' OR '.join(visibility_conditions)
+            base_conditions.append(f'({visibility_str})')
+        
+        where_clause = ' AND '.join(base_conditions)
+        query = f'''SELECT * FROM posts WHERE {where_clause} 
+                    ORDER BY pinned_at DESC LIMIT %s'''
+        params.append(limit)
+        
+        rows = fetchall(query, params)
+        return [Post(**row) for row in rows]
+    
+    @staticmethod
+    def get_pinned_count():
+        from datetime import datetime
+        now = datetime.now()
+        row = fetchone(
+            '''SELECT COUNT(*) as count FROM posts 
+               WHERE is_pinned = 1 AND (pin_expires_at IS NULL OR pin_expires_at > %s)''',
+            (now,)
+        )
+        return row['count'] if row else 0
+    
     @staticmethod
     def search_posts(current_user=None, keyword=None, post_type=None, sort_by='latest', limit=20, offset=0):
-        base_conditions = []
+        base_conditions = ['(is_pinned = 0 OR is_pinned IS NULL)']
         params = []
         
         if current_user is None:
@@ -207,6 +290,9 @@ class Post:
             'images': self.get_images_list(),
             'is_task': self.is_task,
             'views_count': self.views_count,
+            'is_pinned': self.is_pinned,
+            'pinned_at': self.pinned_at,
+            'pin_expires_at': self.pin_expires_at,
             'created_at': self.created_at
         }
         

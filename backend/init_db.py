@@ -33,7 +33,21 @@ def init_database():
             cursor.execute('ALTER TABLE posts ADD COLUMN views_count INTEGER DEFAULT 0')
             print('Added missing column: posts.views_count')
         
+        if not column_exists(cursor, 'posts', 'is_pinned'):
+            cursor.execute('ALTER TABLE posts ADD COLUMN is_pinned INTEGER DEFAULT 0')
+            print('Added missing column: posts.is_pinned')
+        
+        if not column_exists(cursor, 'posts', 'pinned_at'):
+            cursor.execute('ALTER TABLE posts ADD COLUMN pinned_at TIMESTAMP')
+            print('Added missing column: posts.pinned_at')
+        
+        if not column_exists(cursor, 'posts', 'pin_expires_at'):
+            cursor.execute('ALTER TABLE posts ADD COLUMN pin_expires_at TIMESTAMP')
+            print('Added missing column: posts.pin_expires_at')
+        
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_views_count ON posts(views_count)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_is_pinned ON posts(is_pinned)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_pinned_at ON posts(pinned_at)')
         conn.commit()
         conn.close()
         return
@@ -62,6 +76,9 @@ def init_database():
             images TEXT,
             is_task INTEGER DEFAULT 0,
             views_count INTEGER DEFAULT 0,
+            is_pinned INTEGER DEFAULT 0,
+            pinned_at TIMESTAMP,
+            pin_expires_at TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users (id)
         )

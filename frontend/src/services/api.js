@@ -60,6 +60,7 @@ export const authApi = {
 export const postApi = {
   getList: (params) => apiClient.get('/posts', { params }),
   search: (params) => apiClient.get('/posts', { params }),
+  getPinned: () => apiClient.get('/posts/pinned'),
   getMy: (params) => apiClient.get('/posts/my', { params }),
   getById: (id) => apiClient.get(`/posts/${id}`),
   create: (data) => apiClient.post('/posts', data, {
@@ -69,6 +70,7 @@ export const postApi = {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
   delete: (id) => apiClient.delete(`/posts/${id}`),
+  pin: (id) => apiClient.post(`/posts/${id}/pin`),
   getComments: (postId, params) => apiClient.get(`/posts/${postId}/comments`, { params }),
   createComment: (postId, data) => apiClient.post(`/posts/${postId}/comments`, data),
   deleteComment: (postId, commentId) => apiClient.delete(`/posts/${postId}/comments/${commentId}`)
