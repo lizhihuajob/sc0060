@@ -562,4 +562,38 @@ p {
     font-size: var(--font-size-2xl);
   }
   
-  h1 { font
+  h1 { font-size: var(--font-size-3xl); }
+  h2 { font-size: var(--font-size-2xl); }
+  h3 { font-size: var(--font-size-xl); }
+  
+  .btn-primary,
+  .btn-secondary {
+    padding: 10px 20px;
+    font-size: var(--font-size-sm);
+  }
+  
+  .card {
+    border-radius: var(--radius-md);
+  }
+}
+
+@media (max-width: 480px) {
+  html, body {
+    font-size: 14px;
+  }
+  
+  .page-container {
+    padding: 0 var(--spacing-sm);
+  }
+  
+  .section-title {
+    font-size: var(--font-size-xl);
+  }
+  
+  h1 { font-size: var(--font-size-2xl); }
+  h2 { font-size: var(--font-size-xl); }
+  
+  .page-section {
+    padding: var(--spacing-2xl) 0;
+  }
+}

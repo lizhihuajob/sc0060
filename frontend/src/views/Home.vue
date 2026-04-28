@@ -1,126 +1,17 @@
 <template>
   <div class="home-page">
-    <section class="hero-section" v-if="!searchKeyword && !hasFilters">
-      <div class="hero-background">
-        <div class="hero-gradient"></div>
-        <div class="hero-pattern"></div>
-      </div>
-      <div class="page-container hero-content">
+    <section class="hero-section" v-if="!hasSearched">
+      <div class="hero-content">
         <div class="hero-text">
           <h1 class="hero-title">
-            <span class="gradient-text">发现精彩</span>，分享价值
+            <span class="gradient-text">发现</span>更多价值信息
           </h1>
-          <p class="hero-subtitle">
-            在这里发布公告、分享任务，让信息触达更多人。
-            <span class="highlight">置顶推广</span>让您的内容获得更多曝光。
+          <p class="hero-desc">
+            发布公告、分享任务，让信息触达更多人
           </p>
-          <div class="hero-actions">
-            <router-link v-if="user" to="/new-post" class="btn-primary hero-btn">
-              <el-icon><Plus /></el-icon>
-              立即发布
-            </router-link>
-            <router-link v-else to="/login" class="btn-outline hero-btn">
-              登录发布
-            </router-link>
-          </div>
         </div>
-        <div class="hero-stats" v-if="pinnedPosts.length > 0">
-          <div class="stat-card">
-            <div class="stat-icon">📌</div>
-            <div class="stat-info">
-              <div class="stat-number">{{ pinnedPosts.length }}</div>
-              <div class="stat-label">置顶消息</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="pinned-section" v-if="pinnedPosts.length > 0">
-      <div class="page-container">
-        <div class="section-header">
-          <div class="section-title-wrap">
-            <span class="section-icon">📌</span>
-            <h2 class="section-title">置顶精选</h2>
-            <span class="pinned-badge">置顶推广</span>
-          </div>
-          <div class="section-actions">
-            <router-link v-if="user" to="/my-posts" class="btn-text">
-              我的发布
-              <el-icon><ArrowRight /></el-icon>
-            </router-link>
-          </div>
-        </div>
-        <div class="pinned-grid">
-          <div 
-            v-for="(post, index) in pinnedPosts" 
-            :key="post.id" 
-            class="pinned-card card"
-            :style="{ animationDelay: `${index * 0.1}s` }"
-            @click="goToPost(post.id)"
-          >
-            <div class="pinned-card-gradient"></div>
-            <div class="pinned-card-content">
-              <div class="pinned-card-header">
-                <div class="pinned-badge-large">
-                  <span class="pinned-icon">📌</span>
-                  <span>置顶</span>
-                </div>
-                <div class="post-type-badge" :class="post.is_task ? 'task' : 'notice'">
-                  {{ post.is_task ? '任务' : '公告' }}
-                </div>
-              </div>
-              <h3 class="pinned-card-title">{{ post.title }}</h3>
-              <p class="pinned-card-excerpt">{{ truncate(post.content, 80) }}</p>
-              <div class="pinned-card-footer">
-                <div class="post-author-info">
-                  <span class="level-badge" :class="post.author?.level">{{ post.author?.level_name }}</span>
-                  <span class="author-name">{{ post.author?.username }}</span>
-                </div>
-                <div class="post-meta">
-                  <span class="meta-item">
-                    <el-icon><View /></el-icon>
-                    {{ post.views_count }}
-                  </span>
-                  <span class="meta-item">
-                    <el-icon><Clock /></el-icon>
-                    {{ formatTime(post.pinned_at || post.created_at) }}
-                  </span>
-                </div>
-              </div>
-            </div>
-            <div class="pinned-card-glow"></div>
-          </div>
-        </div>
-        <div class="pin-promotion card">
-          <div class="promotion-content">
-            <div class="promotion-icon">
-              <el-icon><TrendCharts /></el-icon>
-            </div>
-            <div class="promotion-text">
-              <h3>让您的内容获得更多曝光</h3>
-              <p>
-                花费 <span class="price-tag">¥{{ pinConfig?.price || 20 }}</span> 
-                即可将您的公告置顶 
-                <span class="highlight">{{ pinConfig?.duration_days || 7 }} 天</span>，
-                获得首页黄金展示位！
-              </p>
-            </div>
-            <router-link v-if="user" to="/my-posts" class="btn-primary">
-              去置顶
-            </router-link>
-            <router-link v-else to="/login" class="btn-outline">
-              登录后发布
-            </router-link>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="posts-section">
-      <div class="page-container">
-        <div class="search-container">
-          <div class="search-box card">
+        <div class="hero-search">
+          <div class="search-box hero-search-box">
             <el-icon class="search-icon"><Search /></el-icon>
             <input 
               type="text" 
@@ -129,125 +20,295 @@
               placeholder="搜索公告标题或内容..."
               class="search-input"
             />
-            <button class="search-btn" @click="doSearch" :disabled="searching">
-              <span v-if="!searching">搜索</span>
-              <span v-else>搜索中...</span>
+            <button class="search-btn" @click="doSearch">
+              <el-icon><Search /></el-icon>
+              <span>搜索</span>
             </button>
           </div>
-          
-          <div class="filter-bar">
-            <div class="filter-group">
-              <span class="filter-label">类型：</span>
-              <div class="filter-buttons">
-                <button 
-                  v-for="type in typeOptions" 
-                  :key="type.value"
-                  class="filter-btn"
-                  :class="{ active: postType === type.value }"
-                  @click="selectType(type.value)"
-                >
-                  {{ type.label }}
-                </button>
-              </div>
-            </div>
-            <div class="filter-group">
-              <span class="filter-label">排序：</span>
-              <div class="filter-buttons">
-                <button 
-                  v-for="sort in sortOptions" 
-                  :key="sort.value"
-                  class="filter-btn"
-                  :class="{ active: sortBy === sort.value }"
-                  @click="selectSort(sort.value)"
-                >
-                  {{ sort.label }}
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
+      </div>
+      <div class="hero-decoration">
+        <div class="decoration-circle circle-1"></div>
+        <div class="decoration-circle circle-2"></div>
+        <div class="decoration-circle circle-3"></div>
+      </div>
+    </section>
 
-        <div class="section-header posts-header">
-          <div class="section-title-wrap">
-            <span class="section-icon">📄</span>
-            <h2 class="section-title">{{ sectionTitle }}</h2>
-            <span class="count-badge" v-if="posts.length > 0">{{ posts.length }}</span>
-          </div>
-        </div>
-
-        <div class="posts-list" v-if="posts.length > 0">
-          <div 
-            v-for="(post, index) in posts" 
-            :key="post.id" 
-            class="post-card card"
-            :style="{ animationDelay: `${index * 0.05}s` }"
-            @click="goToPost(post.id)"
-          >
-            <div class="post-card-main">
-              <div class="post-card-header">
-                <div class="post-type-badge" :class="post.is_task ? 'task' : 'notice'">
-                  {{ post.is_task ? '任务' : '公告' }}
-                </div>
-                <div class="post-author-small">
-                  <span class="level-badge" :class="post.author?.level">{{ post.author?.level_name }}</span>
-                  <span class="author-name">{{ post.author?.username }}</span>
-                </div>
+    <section class="main-section">
+      <div class="main-container">
+        <div class="content-area">
+          <div v-if="pinnedPosts.length > 0" class="pinned-section">
+            <div class="section-header">
+              <div class="section-title-wrapper">
+                <span class="section-icon">📌</span>
+                <h2 class="section-title">精选置顶</h2>
+                <span class="pinned-badge">{{ pinnedPosts.length }}/{{ pinConfig.max_count }}</span>
               </div>
-              <h3 class="post-card-title">{{ post.title }}</h3>
-              <p class="post-card-excerpt">{{ truncate(post.content, 120) }}</p>
-              
-              <div class="post-images" v-if="post.images?.length > 0">
-                <div class="image-grid">
-                  <img 
-                    v-for="(img, imgIndex) in post.images.slice(0, 3)" 
-                    :key="imgIndex"
-                    :src="`/uploads/${img}`"
-                    class="post-image"
-                    alt="图片"
-                  />
-                </div>
-              </div>
-            </div>
-            <div class="post-card-footer">
-              <div class="permission-info">
-                <el-icon><View /></el-icon>
-                <span>{{ post.view_permission_name }}</span>
-              </div>
-              <div class="post-stats">
-                <span class="stat-item">
-                  <el-icon><View /></el-icon>
-                  {{ post.views_count }}
-                </span>
-                <span class="stat-item">
-                  <el-icon><Clock /></el-icon>
-                  {{ formatTime(post.created_at) }}
+              <div class="section-action">
+                <span class="pin-info">
+                  <el-icon><Star /></el-icon>
+                  置顶推广 ¥{{ pinConfig.price }}/{{ pinConfig.duration_days }}天
                 </span>
               </div>
             </div>
+            <div class="pinned-grid">
+              <div 
+                v-for="(post, index) in pinnedPosts" 
+                :key="post.id" 
+                class="pinned-card"
+                :style="{ animationDelay: `${index * 0.1}s` }"
+                @click="goToPost(post.id)"
+              >
+                <div class="pinned-header">
+                  <div class="pinned-rank">{{ index + 1 }}</div>
+                  <div class="pinned-meta">
+                    <span class="pinned-tag">置顶</span>
+                    <span class="type-badge" :class="post.is_task ? 'task' : 'notice'">
+                      {{ post.is_task ? '任务' : '公告' }}
+                    </span>
+                  </div>
+                </div>
+                <div class="pinned-content">
+                  <h3 class="pinned-title">{{ post.title }}</h3>
+                  <p class="pinned-excerpt">{{ truncate(post.content, 80) }}</p>
+                </div>
+                <div class="pinned-footer">
+                  <div class="pinned-author">
+                    <span class="level-badge" :class="post.author?.level">{{ post.author?.level_name }}</span>
+                    <span class="author-name">{{ post.author?.username }}</span>
+                  </div>
+                  <div class="pinned-stats">
+                    <span class="stat-item">
+                      <el-icon><View /></el-icon>
+                      {{ post.views_count }}
+                    </span>
+                    <span class="stat-item">
+                      <el-icon><Clock /></el-icon>
+                      {{ formatTime(post.created_at) }}
+                    </span>
+                  </div>
+                </div>
+                <div class="pinned-glow"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="posts-section">
+            <div class="section-header">
+              <div class="section-title-wrapper">
+                <span class="section-icon">📄</span>
+                <h2 class="section-title">
+                  {{ hasSearched ? '搜索结果' : (sortBy === 'hot' ? '热门发布' : '最新发布') }}
+                </h2>
+                <span v-if="hasSearched && searchKeyword" class="search-keyword">
+                  关键词: "{{ searchKeyword }}"
+                  <button class="clear-search" @click="clearSearch">
+                    <el-icon><Close /></el-icon>
+                  </button>
+                </span>
+              </div>
+              <div class="section-controls">
+                <div v-if="!hasSearched" class="filter-tabs">
+                  <button 
+                    v-for="type in typeOptions" 
+                    :key="type.value"
+                    class="filter-tab"
+                    :class="{ active: postType === type.value }"
+                    @click="selectType(type.value)"
+                  >
+                    {{ type.label }}
+                  </button>
+                </div>
+                <div class="sort-dropdown">
+                  <el-dropdown @command="selectSort">
+                    <span class="sort-trigger">
+                      <el-icon><Sort /></el-icon>
+                      {{ currentSortLabel }}
+                      <el-icon class="caret"><CaretBottom /></el-icon>
+                    </span>
+                    <template #dropdown>
+                      <el-dropdown-menu>
+                        <el-dropdown-item 
+                          v-for="sort in sortOptions" 
+                          :key="sort.value"
+                          :command="sort.value"
+                          :class="{ active: sortBy === sort.value }"
+                        >
+                          {{ sort.label }}
+                        </el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="!hasSearched" class="mobile-search">
+              <div class="search-box compact-search-box">
+                <el-icon class="search-icon"><Search /></el-icon>
+                <input 
+                  type="text" 
+                  v-model="searchKeyword" 
+                  @keyup.enter="doSearch"
+                  placeholder="搜索公告..."
+                  class="search-input"
+                />
+                <button class="search-btn-icon" @click="doSearch">
+                  <el-icon><Search /></el-icon>
+                </button>
+              </div>
+            </div>
+
+            <div class="posts-grid" v-if="posts.length > 0">
+              <div 
+                v-for="(post, index) in posts" 
+                :key="post.id" 
+                class="post-card card"
+                :style="{ animationDelay: `${index * 0.05}s` }"
+                @click="goToPost(post.id)"
+              >
+                <div class="post-header">
+                  <div class="post-type">
+                    <span class="type-badge" :class="post.is_task ? 'task' : 'notice'">
+                      {{ post.is_task ? '任务' : '公告' }}
+                    </span>
+                  </div>
+                  <div class="post-author">
+                    <span class="level-badge" :class="post.author?.level">{{ post.author?.level_name }}</span>
+                    <span class="author-name">{{ post.author?.username }}</span>
+                  </div>
+                </div>
+                
+                <div class="post-content">
+                  <h3 class="post-title">{{ post.title }}</h3>
+                  <p class="post-excerpt">{{ truncate(post.content, 120) }}</p>
+                </div>
+
+                <div class="post-images" v-if="post.images?.length > 0">
+                  <div class="image-grid">
+                    <img 
+                      v-for="(img, imgIndex) in post.images.slice(0, 3)" 
+                      :key="imgIndex"
+                      :src="`/uploads/${img}`"
+                      class="post-image"
+                      alt="图片"
+                    />
+                  </div>
+                </div>
+
+                <div class="post-footer">
+                  <div class="post-stats">
+                    <span class="stat-item">
+                      <el-icon><View /></el-icon>
+                      {{ post.views_count }}
+                    </span>
+                    <span class="stat-item">
+                      <el-icon><Lock /></el-icon>
+                      {{ post.view_permission_name }}
+                    </span>
+                  </div>
+                  <span class="post-time">{{ formatTime(post.created_at) }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="empty-state" v-else-if="!loading">
+              <div class="empty-icon">
+                <svg width="80" height="80" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3Z" stroke="#86868b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M9 10H15" stroke="#86868b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M9 14H15" stroke="#86868b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <h3 class="empty-title">暂无发布</h3>
+              <p class="empty-desc">
+                {{ hasSearched ? '没有找到相关内容，请尝试其他关键词' : '平台还没有任何内容，快来发布第一条吧' }}
+              </p>
+              <template v-if="!hasSearched">
+                <router-link to="/new-post" class="btn-primary">
+                  <el-icon><Plus /></el-icon>
+                  立即发布
+                </router-link>
+              </template>
+            </div>
+
+            <div class="loading-state" v-else>
+              <div class="loading-spinner">
+                <div class="spinner-circle"></div>
+              </div>
+              <p>加载中...</p>
+            </div>
+
+            <div class="load-more" v-if="hasMore && !loading">
+              <button class="load-more-btn" @click="loadMore" :disabled="loading">
+                <span v-if="!loading">加载更多</span>
+                <span v-else>加载中...</span>
+                <el-icon class="arrow-icon"><ArrowDown /></el-icon>
+              </button>
+            </div>
           </div>
         </div>
 
-        <div class="empty-state card" v-else-if="!loading && !searching">
-          <div class="empty-icon">{{ searchKeyword ? '🔍' : '📭' }}</div>
-          <h3 class="empty-title">{{ searchKeyword ? '未找到相关内容' : '暂无发布' }}</h3>
-          <p class="empty-desc">
-            {{ searchKeyword ? '请尝试其他关键词' : '平台还没有任何内容，快来发布第一条吧' }}
-          </p>
-          <router-link v-if="user && !searchKeyword" to="/new-post" class="btn-primary">
-            立即发布
-          </router-link>
-        </div>
+        <div class="sidebar">
+          <div class="sidebar-card card">
+            <div class="sidebar-header">
+              <span class="sidebar-icon">💎</span>
+              <h3 class="sidebar-title">升级会员</h3>
+            </div>
+            <p class="sidebar-desc">解锁更多发布额度和专属特权</p>
+            <router-link to="/upgrade" class="btn-primary sidebar-btn">
+              立即升级
+            </router-link>
+          </div>
 
-        <div class="loading-state" v-else>
-          <el-icon class="loading-icon"><Loading /></el-icon>
-          <p>加载中...</p>
-        </div>
+          <div class="sidebar-card card">
+            <div class="sidebar-header">
+              <span class="sidebar-icon">📌</span>
+              <h3 class="sidebar-title">置顶推广</h3>
+            </div>
+            <div class="pin-stats">
+              <div class="pin-stat-item">
+                <span class="pin-stat-value">¥{{ pinConfig.price }}</span>
+                <span class="pin-stat-label">价格</span>
+              </div>
+              <div class="pin-stat-item">
+                <span class="pin-stat-value">{{ pinConfig.duration_days }}天</span>
+                <span class="pin-stat-label">有效期</span>
+              </div>
+              <div class="pin-stat-item">
+                <span class="pin-stat-value">{{ pinConfig.max_count }}位</span>
+                <span class="pin-stat-label">坑位</span>
+              </div>
+            </div>
+            <p class="sidebar-hint">让你的信息获得更多曝光</p>
+          </div>
 
-        <div class="load-more" v-if="hasMore && !loading && !searching">
-          <button class="btn-secondary" @click="loadMore" :disabled="loading">
-            <span v-if="!loading">加载更多</span>
-            <span v-else>加载中...</span>
-          </button>
+          <div class="sidebar-card card quick-actions">
+            <div class="sidebar-header">
+              <span class="sidebar-icon">⚡</span>
+              <h3 class="sidebar-title">快捷操作</h3>
+            </div>
+            <div class="action-list">
+              <router-link to="/new-post" class="action-item">
+                <div class="action-icon publish-icon">
+                  <el-icon><Edit /></el-icon>
+                </div>
+                <span>发布公告</span>
+              </router-link>
+              <router-link to="/my-posts" class="action-item" v-if="user">
+                <div class="action-icon my-posts-icon">
+                  <el-icon><Document /></el-icon>
+                </div>
+                <span>我的发布</span>
+              </router-link>
+              <router-link to="/recharge" class="action-item" v-if="user">
+                <div class="action-icon recharge-icon">
+                  <el-icon><Wallet /></el-icon>
+                </div>
+                <span>账户充值</span>
+              </router-link>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -255,10 +316,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Document, Clock, View, Loading, Search, Plus, ArrowRight, TrendCharts, Fire } from '@element-plus/icons-vue'
-import { postApi, configApi } from '../services/api'
+import { 
+  Document, Clock, View, Loading, Search, Fire, 
+  Star, Plus, ArrowDown, Close, Edit, Wallet,
+  Lock, CaretBottom, Sort
+} from '@element-plus/icons-vue'
+import { postApi } from '../services/api'
 import { useUserStore } from '../stores/userStore'
 
 const router = useRouter()
@@ -266,11 +331,15 @@ const { user } = useUserStore()
 
 const posts = ref([])
 const pinnedPosts = ref([])
-const pinConfig = ref(null)
+const pinConfig = ref({
+  price: 20,
+  duration_days: 7,
+  max_count: 3
+})
 const loading = ref(false)
-const searching = ref(false)
 const page = ref(1)
 const hasMore = ref(true)
+const hasSearched = ref(false)
 
 const searchKeyword = ref('')
 const postType = ref('all')
@@ -287,15 +356,9 @@ const sortOptions = [
   { value: 'hot', label: '热门' }
 ]
 
-const hasFilters = computed(() => {
-  return postType.value !== 'all' || sortBy.value !== 'latest'
-})
-
-const sectionTitle = computed(() => {
-  if (searchKeyword.value) {
-    return '搜索结果'
-  }
-  return sortBy.value === 'hot' ? '热门发布' : '最新发布'
+const currentSortLabel = computed(() => {
+  const sort = sortOptions.find(s => s.value === sortBy.value)
+  return sort ? sort.label : '最新'
 })
 
 const loadPinnedPosts = async () => {
@@ -303,7 +366,9 @@ const loadPinnedPosts = async () => {
     const response = await postApi.getPinned()
     if (response.data.success) {
       pinnedPosts.value = response.data.posts
-      pinConfig.value = response.data.config
+      if (response.data.config) {
+        pinConfig.value = response.data.config
+      }
     }
   } catch (error) {
     console.error('加载置顶帖子失败:', error)
@@ -317,7 +382,7 @@ const loadPosts = async (append = false) => {
   try {
     const params = {
       page: page.value,
-      per_page: 15
+      per_page: 12
     }
     
     if (searchKeyword.value) {
@@ -349,12 +414,18 @@ const loadPosts = async (append = false) => {
 }
 
 const doSearch = () => {
+  hasSearched.value = !!searchKeyword.value
   page.value = 1
   posts.value = []
-  searching.value = true
-  loadPosts(false).then(() => {
-    searching.value = false
-  })
+  loadPosts(false)
+}
+
+const clearSearch = () => {
+  searchKeyword.value = ''
+  hasSearched.value = false
+  page.value = 1
+  posts.value = []
+  loadPosts(false)
 }
 
 const selectType = (type) => {
@@ -400,144 +471,213 @@ onMounted(() => {
 <style scoped>
 .home-page {
   flex: 1;
-  display: flex;
-  flex-direction: column;
+  min-height: 100vh;
+  background: var(--color-background);
 }
 
 .hero-section {
   position: relative;
-  padding: 64px 0 80px;
+  padding: 80px 0 60px;
+  background: linear-gradient(180deg, #ffffff 0%, var(--color-background) 100%);
   overflow: hidden;
-}
-
-.hero-background {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-}
-
-.hero-gradient {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, 
-    rgba(0, 122, 255, 0.08) 0%, 
-    rgba(88, 86, 214, 0.04) 50%,
-    transparent 100%
-  );
-}
-
-.hero-pattern {
-  position: absolute;
-  inset: 0;
-  background-image: radial-gradient(
-    circle at 1px 1px,
-    rgba(0, 122, 255, 0.05) 1px,
-    transparent 0
-  );
-  background-size: 40px 40px;
 }
 
 .hero-content {
   position: relative;
-  z-index: 1;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 48px;
+  z-index: 2;
+  text-align: center;
 }
 
 .hero-text {
-  flex: 1;
-  max-width: 600px;
+  margin-bottom: 40px;
 }
 
 .hero-title {
-  font-size: 48px;
+  font-size: clamp(36px, 6vw, 56px);
   font-weight: 700;
-  line-height: 1.1;
+  letter-spacing: -0.02em;
   margin: 0 0 16px;
+  line-height: 1.1;
 }
 
 .gradient-text {
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-indigo) 100%);
+  background: var(--gradient-primary);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-.hero-subtitle {
-  font-size: 18px;
-  line-height: 1.6;
+.hero-desc {
+  font-size: var(--font-size-lg);
   color: var(--color-text-secondary);
-  margin: 0 0 32px;
+  margin: 0;
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
-.highlight {
-  color: var(--color-primary);
-  font-weight: 600;
+.hero-search {
+  max-width: 600px;
+  margin: 0 auto;
 }
 
-.hero-actions {
+.hero-search-box {
+  padding: 8px;
+  border-radius: var(--radius-xl);
+  background: white;
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--color-border-light);
+}
+
+.search-box {
   display: flex;
+  align-items: center;
   gap: 12px;
+  padding: 12px 16px;
+  background: white;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-light);
+  transition: all var(--transition-fast);
 }
 
-.hero-btn {
-  display: inline-flex;
+.search-box:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.1);
+}
+
+.search-icon {
+  font-size: 20px;
+  color: var(--color-text-tertiary);
+}
+
+.search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: var(--font-size-base);
+  color: var(--color-text);
+  background: transparent;
+}
+
+.search-input::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+.search-btn {
+  display: flex;
   align-items: center;
   gap: 8px;
+  padding: 10px 20px;
+  background: var(--gradient-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all var(--transition-fast);
 }
 
-.hero-stats {
+.search-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0, 122, 255, 0.3);
+}
+
+.search-btn-icon {
+  padding: 10px;
+  background: var(--gradient-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.hero-decoration {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.decoration-circle {
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0.6;
+  filter: blur(60px);
+  animation: float 8s ease-in-out infinite;
+}
+
+.circle-1 {
+  width: 300px;
+  height: 300px;
+  background: var(--gradient-primary);
+  top: 10%;
+  left: 10%;
+  animation-delay: 0s;
+}
+
+.circle-2 {
+  width: 250px;
+  height: 250px;
+  background: linear-gradient(135deg, #FF2D55 0%, #FF3B30 100%);
+  top: 20%;
+  right: 15%;
+  animation-delay: 2s;
+}
+
+.circle-3 {
+  width: 200px;
+  height: 200px;
+  background: var(--gradient-gold);
+  bottom: 10%;
+  left: 30%;
+  animation-delay: 4s;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-30px) scale(1.05); }
+}
+
+.main-section {
+  position: relative;
+  z-index: 3;
+  padding: 40px 0;
+}
+
+.main-container {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 40px;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 40px;
+}
+
+.content-area {
+  min-width: 0;
+}
+
+.sidebar {
+  width: 320px;
   flex-shrink: 0;
-}
-
-.stat-card {
-  background: linear-gradient(135deg, rgba(0, 122, 255, 0.08) 0%, rgba(88, 86, 214, 0.04) 100%);
-  border: 1px solid rgba(0, 122, 255, 0.1);
-  border-radius: var(--radius-xl);
-  padding: 24px 32px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.stat-icon {
-  font-size: 32px;
-}
-
-.stat-number {
-  font-size: 32px;
-  font-weight: 700;
-  color: var(--color-primary);
-  line-height: 1;
-}
-
-.stat-label {
-  font-size: 14px;
-  color: var(--color-text-secondary);
-  margin-top: 4px;
-}
-
-.pinned-section {
-  padding: 48px 0;
-  background: linear-gradient(180deg, 
-    rgba(255, 255, 255, 0.5) 0%, 
-    transparent 100%
-  );
 }
 
 .section-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 24px;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
-.section-title-wrap {
+.section-title-wrapper {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .section-icon {
@@ -545,154 +685,271 @@ onMounted(() => {
 }
 
 .section-title {
-  font-size: 24px;
-  font-weight: 700;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
   margin: 0;
+  color: var(--color-text);
 }
 
-.section-actions {
+.pinned-badge {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  background: rgba(0, 0, 0, 0.04);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+}
+
+.section-action {
   display: flex;
-  gap: 12px;
+  align-items: center;
 }
 
-.btn-text {
-  display: inline-flex;
+.pin-info {
+  display: flex;
   align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.section-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.filter-tabs {
+  display: flex;
   gap: 4px;
-  font-size: 14px;
+  padding: 4px;
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: var(--radius-md);
+}
+
+.filter-tab {
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.filter-tab:hover {
+  color: var(--color-text);
+}
+
+.filter-tab.active {
+  background: white;
+  color: var(--color-text);
+  font-weight: var(--font-weight-medium);
+  box-shadow: var(--shadow-sm);
+}
+
+.sort-dropdown {
+  position: relative;
+}
+
+.sort-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: white;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.sort-trigger:hover {
+  border-color: var(--color-border);
+}
+
+.caret {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+.search-keyword {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-sm);
   color: var(--color-primary);
-  font-weight: 500;
+  background: rgba(0, 122, 255, 0.08);
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+}
+
+.clear-search {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.clear-search:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--color-text);
+}
+
+.mobile-search {
+  display: none;
+  margin-bottom: 24px;
+}
+
+.compact-search-box {
+  padding: 10px 12px;
+}
+
+.pinned-section {
+  margin-bottom: 48px;
 }
 
 .pinned-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 20px;
-  margin-bottom: 32px;
 }
 
 .pinned-card {
   position: relative;
-  cursor: pointer;
-  overflow: hidden;
+  background: linear-gradient(135deg, #ffffff 0%, #fafafa 100%);
+  border-radius: var(--radius-xl);
   padding: 24px;
-  min-height: 220px;
-  animation: slideUp 0.5s ease-out forwards;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  border: 1px solid var(--color-border-light);
+  overflow: hidden;
+  animation: slideUp 0.5s ease forwards;
   opacity: 0;
+  transform: translateY(20px);
 }
 
 @keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
 
-.pinned-card-gradient {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, 
-    rgba(0, 122, 255, 0.03) 0%, 
-    rgba(255, 45, 85, 0.03) 100%
-  );
-  pointer-events: none;
+.pinned-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-xl);
+  border-color: var(--color-primary);
 }
 
-.pinned-card-glow {
-  position: absolute;
-  inset: -50%;
-  background: radial-gradient(
-    circle at center,
-    rgba(0, 122, 255, 0.08) 0%,
-    transparent 60%
-  );
-  opacity: 0;
-  transition: opacity var(--transition-normal);
-  pointer-events: none;
-}
-
-.pinned-card:hover .pinned-card-glow {
+.pinned-card:hover .pinned-glow {
   opacity: 1;
 }
 
-.pinned-card-content {
-  position: relative;
-  z-index: 1;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
+.pinned-glow {
+  position: absolute;
+  inset: -50%;
+  background: radial-gradient(circle at center, rgba(0, 122, 255, 0.08) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity var(--transition-slow);
+  pointer-events: none;
 }
 
-.pinned-card-header {
+.pinned-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
 }
 
-.pinned-badge-large {
-  display: inline-flex;
+.pinned-rank {
+  width: 36px;
+  height: 36px;
+  display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
+  justify-content: center;
+  background: var(--gradient-primary);
+  color: white;
+  border-radius: var(--radius-md);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-lg);
+}
+
+.pinned-card:first-child .pinned-rank {
+  background: var(--gradient-gold);
+}
+
+.pinned-card:nth-child(2) .pinned-rank {
+  background: linear-gradient(135deg, #C0C0C0 0%, #A8A8A8 100%);
+}
+
+.pinned-card:nth-child(3) .pinned-rank {
+  background: linear-gradient(135deg, #CD7F32 0%, #8B4513 100%);
+}
+
+.pinned-meta {
+  display: flex;
+  gap: 8px;
+}
+
+.pinned-tag {
+  padding: 4px 10px;
   background: var(--gradient-pinned);
   color: white;
   border-radius: var(--radius-full);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
 }
 
-.pinned-icon {
-  font-size: 14px;
-}
-
-.post-type-badge {
-  font-size: 12px;
-  font-weight: 600;
-  padding: 4px 12px;
+.type-badge {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  padding: 4px 10px;
   border-radius: var(--radius-full);
 }
 
-.post-type-badge.notice {
+.type-badge.notice {
   background: rgba(0, 122, 255, 0.12);
   color: var(--color-primary);
 }
 
-.post-type-badge.task {
+.type-badge.task {
   background: rgba(255, 149, 0, 0.12);
   color: var(--color-warning);
 }
 
-.pinned-card-title {
-  font-size: 20px;
-  font-weight: 600;
-  line-height: 1.3;
-  margin: 0 0 12px;
+.pinned-content {
+  margin-bottom: 16px;
+}
+
+.pinned-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  margin: 0 0 8px;
   color: var(--color-text);
-  transition: color var(--transition-fast);
+  line-height: 1.4;
 }
 
-.pinned-card:hover .pinned-card-title {
-  color: var(--color-primary);
-}
-
-.pinned-card-excerpt {
-  font-size: 14px;
-  line-height: 1.6;
+.pinned-excerpt {
+  font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
-  margin: 0 0 16px;
-  flex: 1;
+  margin: 0;
+  line-height: 1.5;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-.pinned-card-footer {
+.pinned-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -700,129 +957,507 @@ onMounted(() => {
   border-top: 1px solid var(--color-border-light);
 }
 
-.post-author-info {
+.pinned-author {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
 .author-name {
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
 }
 
-.post-meta {
+.pinned-stats {
   display: flex;
-  align-items: center;
   gap: 16px;
 }
 
-.meta-item {
+.stat-item {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 13px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-tertiary);
 }
 
-.meta-item .el-icon {
-  font-size: 14px;
+.posts-section {
+  position: relative;
 }
 
-.pin-promotion {
-  background: linear-gradient(135deg, 
-    rgba(0, 122, 255, 0.04) 0%, 
-    rgba(88, 86, 214, 0.02) 100%
-  );
-  border: 1px solid rgba(0, 122, 255, 0.1);
-  padding: 24px 32px;
-}
-
-.promotion-content {
-  display: flex;
-  align-items: center;
+.posts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: 24px;
 }
 
-.promotion-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: var(--radius-xl);
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-indigo) 100%);
+.post-card {
+  padding: 24px;
+  cursor: pointer;
+  animation: fadeInUp 0.4s ease forwards;
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+@keyframes fadeInUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.post-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--color-primary);
+}
+
+.post-header {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.promotion-icon .el-icon {
-  font-size: 24px;
-  color: white;
-}
-
-.promotion-text {
-  flex: 1;
-}
-
-.promotion-text h3 {
-  font-size: 18px;
-  font-weight: 600;
-  margin: 0 0 8px;
-}
-
-.promotion-text p {
-  font-size: 14px;
-  color: var(--color-text-secondary);
-  margin: 0;
-  line-height: 1.6;
-}
-
-.price-tag {
-  color: var(--color-primary);
-  font-weight: 700;
-  font-size: 16px;
-}
-
-.count-badge {
-  padding: 4px 10px;
-  background: rgba(0, 122, 255, 0.12);
-  color: var(--color-primary);
-  border-radius: var(--radius-full);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.posts-section {
-  flex: 1;
-  padding: 32px 0 64px;
-  background: var(--color-background);
-}
-
-.search-container {
-  margin-bottom: 32px;
-}
-
-.search-box {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 20px;
   margin-bottom: 16px;
 }
 
-.search-icon {
-  font-size: 20px;
-  color: var(--color-text-secondary);
+.post-type {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.search-input {
-  flex: 1;
-  border: none;
-  outline: none;
-  font-size: 15px;
+.post-author {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.post-content {
+  margin-bottom: 16px;
+}
+
+.post-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.4;
+  margin: 0 0 8px;
   color: var(--color-text);
-  background: transparent;
+  transition: color var(--transition-fast);
 }
 
-.search-input::placeholder {
-  color: var
+.post-card:hover .post-title {
+  color: var(--color-primary);
+}
+
+.post-excerpt {
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.post-images {
+  margin-bottom: 16px;
+}
+
+.image-grid {
+  display: flex;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.post-image {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  background: var(--color-background);
+}
+
+.post-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border-light);
+}
+
+.post-stats {
+  display: flex;
+  gap: 16px;
+}
+
+.post-time {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+}
+
+.empty-state,
+.loading-state {
+  text-align: center;
+  padding: 80px 20px;
+}
+
+.empty-icon {
+  margin-bottom: 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.empty-title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  margin: 0 0 8px;
+  color: var(--color-text);
+}
+
+.empty-desc {
+  font-size: var(--font-size-base);
+  color: var(--color-text-secondary);
+  margin: 0 0 24px;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.loading-spinner {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.spinner-circle {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--color-border-light);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-state p {
+  font-size: var(--font-size-base);
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.load-more {
+  text-align: center;
+  margin-top: 48px;
+}
+
+.load-more-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 40px;
+  background: white;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  font-size: var(--font-size-base);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.load-more-btn:hover:not(:disabled) {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.load-more-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.arrow-icon {
+  transition: transform var(--transition-fast);
+}
+
+.load-more-btn:hover .arrow-icon {
+  transform: translateY(2px);
+}
+
+.sidebar-card {
+  padding: 24px;
+  margin-bottom: 20px;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.sidebar-icon {
+  font-size: 24px;
+}
+
+.sidebar-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  margin: 0;
+  color: var(--color-text);
+}
+
+.sidebar-desc {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin: 0 0 20px;
+  line-height: 1.5;
+}
+
+.sidebar-btn {
+  width: 100%;
+  justify-content: center;
+}
+
+.pin-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.pin-stat-item {
+  text-align: center;
+  padding: 12px 8px;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: var(--radius-md);
+}
+
+.pin-stat-value {
+  display: block;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary);
+}
+
+.pin-stat-label {
+  display: block;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  margin-top: 4px;
+}
+
+.sidebar-hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  margin: 0;
+  text-align: center;
+}
+
+.quick-actions {
+  background: white;
+}
+
+.action-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.action-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  text-decoration: none;
+  transition: all var(--transition-fast);
+}
+
+.action-item:hover {
+  background: rgba(0, 0, 0, 0.04);
+  transform: translateX(4px);
+}
+
+.action-icon {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+}
+
+.publish-icon {
+  background: rgba(0, 122, 255, 0.12);
+  color: var(--color-primary);
+}
+
+.my-posts-icon {
+  background: rgba(52, 199, 89, 0.12);
+  color: var(--color-success);
+}
+
+.recharge-icon {
+  background: rgba(255, 149, 0, 0.12);
+  color: var(--color-warning);
+}
+
+@media (max-width: 1200px) {
+  .main-container {
+    grid-template-columns: 1fr 280px;
+    gap: 24px;
+    padding: 0 24px;
+  }
+  
+  .sidebar {
+    width: 280px;
+  }
+  
+  .pinned-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 992px) {
+  .hero-section {
+    padding: 48px 0 40px;
+  }
+  
+  .main-container {
+    grid-template-columns: 1fr;
+    padding: 0 20px;
+  }
+  
+  .sidebar {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-top: 40px;
+  }
+  
+  .sidebar-card {
+    margin-bottom: 0;
+  }
+  
+  .pinned-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .hero-section {
+    padding: 32px 0;
+  }
+  
+  .decoration-circle {
+    opacity: 0.3;
+  }
+  
+  .hero-desc {
+    font-size: var(--font-size-base);
+  }
+  
+  .hero-search-box {
+    padding: 6px;
+    border-radius: var(--radius-lg);
+  }
+  
+  .search-btn span {
+    display: none;
+  }
+  
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .section-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .filter-tabs {
+    flex-wrap: wrap;
+  }
+  
+  .mobile-search {
+    display: block;
+  }
+  
+  .sidebar {
+    grid-template-columns: 1fr;
+  }
+  
+  .posts-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .post-card {
+    padding: 20px;
+  }
+  
+  .load-more-btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .main-container {
+    padding: 0 16px;
+  }
+  
+  .section-title-wrapper {
+    flex-wrap: wrap;
+  }
+  
+  .filter-tabs {
+    display: none;
+  }
+  
+  .sort-trigger {
+    padding: 8px 12px;
+  }
+  
+  .pinned-card {
+    padding: 20px;
+  }
+  
+  .pinned-rank {
+    width: 32px;
+    height: 32px;
+    font-size: var(--font-size-base);
+  }
+  
+  .pinned-header {
+    margin-bottom: 12px;
+  }
+  
+  .pinned-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .pinned-stats {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+:deep(.el-dropdown-menu__item) {
+  font-size: var(--font-size-sm);
+}
+
+:deep(.el-dropdown-menu__item.active) {
+  color: var(--color-primary);
+  font-weight: var(--font-weight-medium);
+}
+</style>
