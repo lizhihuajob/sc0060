@@ -40,7 +40,9 @@ def get_current_user():
 def get_config():
     return jsonify({
         'user_levels': Config.USER_LEVELS,
-        'view_permissions': Config.VIEW_PERMISSIONS
+        'view_permissions': Config.VIEW_PERMISSIONS,
+        'categories': Config.CATEGORIES,
+        'pinned_config': Config.PINNED_CONFIG
     })
 
 @app.route('/api/auth/me', methods=['GET'])
@@ -104,6 +106,18 @@ def logout():
     session.pop('user_id', None)
     return jsonify({'success': True, 'message': '已退出登录'})
 
+@app.route('/api/posts/pinned', methods=['GET'])
+def get_pinned_posts():
+    current_user = get_current_user()
+    max_count = Config.PINNED_CONFIG['max_count']
+    posts = Post.get_active_pinned_posts(current_user, limit=max_count)
+    
+    return jsonify({
+        'success': True,
+        'posts': [post.to_dict(include_author=True) for post in posts],
+        'max_count': max_count
+    })
+
 @app.route('/api/posts', methods=['GET'])
 def get_posts():
     page = request.args.get('page', 1, type=int)
@@ -113,10 +127,11 @@ def get_posts():
     keyword = request.args.get('keyword', '').strip()
     post_type = request.args.get('type', 'all')
     sort_by = request.args.get('sort', 'latest')
+    category = request.args.get('category', 'all')
     
     if not keyword and post_type == 'all' and sort_by == 'latest':
         current_user = get_current_user()
-        posts = Post.get_visible_posts(current_user, limit=per_page, offset=offset)
+        posts = Post.get_visible_posts(current_user, category=category, limit=per_page, offset=offset)
     else:
         current_user = get_current_user()
         search_type = None if post_type == 'all' else post_type
@@ -125,6 +140,7 @@ def get_posts():
             keyword=keyword if keyword else None,
             post_type=search_type,
             sort_by=sort_by,
+            category=category,
             limit=per_page,
             offset=offset
         )
@@ -192,6 +208,7 @@ def create_post():
     content = request.form.get('content', '').strip()
     view_permission = request.form.get('view_permission', 'all')
     is_task = int(request.form.get('is_task', 0))
+    category = request.form.get('category', 'other')
     
     if not title or not content:
         return jsonify({'success': False, 'message': '标题和内容不能为空'}), 400
@@ -213,7 +230,8 @@ def create_post():
         content=content,
         view_permission=view_permission,
         images=images if images else None,
-        is_task=is_task
+        is_task=is_task,
+        category=category
     )
     
     user.increment_posts_count()
@@ -241,6 +259,47 @@ def delete_post(post_id):
     return jsonify({
         'success': True,
         'message': '删除成功'
+    })
+
+@app.route('/api/posts/<int:post_id>/pin', methods=['POST'])
+@login_required
+def pin_post(post_id):
+    user = get_current_user()
+    post = Post.get_by_id(post_id)
+    
+    if not post:
+        return jsonify({'success': False, 'message': '该公告不存在'}), 404
+    
+    if not post.is_owned_by(user):
+        return jsonify({'success': False, 'message': '您没有权限操作该公告'}), 403
+    
+    if post.is_pinned_active():
+        return jsonify({'success': False, 'message': '该公告已在置顶中'}), 400
+    
+    pinned_price = Config.PINNED_CONFIG['price']
+    
+    if user.balance < pinned_price:
+        return jsonify({'success': False, 'message': f'余额不足，置顶需要 {pinned_price} 元'}), 400
+    
+    current_pinned = Post.get_active_pinned_posts(current_user=None, limit=100)
+    if len(current_pinned) >= Config.PINNED_CONFIG['max_count']:
+        return jsonify({'success': False, 'message': '置顶位置已满，请稍后再试'}), 400
+    
+    user.add_balance(-pinned_price)
+    post.pin()
+    
+    Transaction.create(
+        user.id,
+        -pinned_price,
+        Transaction.TYPE_OTHER,
+        f'置顶公告「{post.title}」'
+    )
+    
+    return jsonify({
+        'success': True,
+        'message': f'置顶成功！有效期 {Config.PINNED_CONFIG["duration_days"]} 天',
+        'post': post.to_dict(include_author=True),
+        'user': user.to_dict()
     })
 
 @app.route('/api/posts/<int:post_id>/comments', methods=['GET'])

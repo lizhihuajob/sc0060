@@ -4,6 +4,7 @@ from models.user import User
 class Transaction:
     TYPE_RECHARGE = 'recharge'
     TYPE_UPGRADE = 'upgrade'
+    TYPE_OTHER = 'other'
     
     def __init__(self, **kwargs):
         self.id = kwargs.get('id')
@@ -47,6 +48,8 @@ class Transaction:
             return '充值'
         elif self.transaction_type == self.TYPE_UPGRADE:
             return '升级'
+        elif self.transaction_type == self.TYPE_OTHER:
+            return '其他'
         return self.transaction_type
     
     def to_dict(self, include_user=False):

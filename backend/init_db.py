@@ -33,7 +33,22 @@ def init_database():
             cursor.execute('ALTER TABLE posts ADD COLUMN views_count INTEGER DEFAULT 0')
             print('Added missing column: posts.views_count')
         
+        if not column_exists(cursor, 'posts', 'category'):
+            cursor.execute("ALTER TABLE posts ADD COLUMN category VARCHAR(50) DEFAULT 'other'")
+            print('Added missing column: posts.category')
+        
+        if not column_exists(cursor, 'posts', 'is_pinned'):
+            cursor.execute('ALTER TABLE posts ADD COLUMN is_pinned INTEGER DEFAULT 0')
+            print('Added missing column: posts.is_pinned')
+        
+        if not column_exists(cursor, 'posts', 'pinned_until'):
+            cursor.execute('ALTER TABLE posts ADD COLUMN pinned_until TIMESTAMP')
+            print('Added missing column: posts.pinned_until')
+        
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_views_count ON posts(views_count)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_category ON posts(category)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_is_pinned ON posts(is_pinned)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_pinned_until ON posts(pinned_until)')
         conn.commit()
         conn.close()
         return
@@ -62,6 +77,9 @@ def init_database():
             images TEXT,
             is_task INTEGER DEFAULT 0,
             views_count INTEGER DEFAULT 0,
+            category VARCHAR(50) DEFAULT 'other',
+            is_pinned INTEGER DEFAULT 0,
+            pinned_until TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users (id)
         )
@@ -94,6 +112,9 @@ def init_database():
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_user_id ON posts(user_id)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_views_count ON posts(views_count)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_category ON posts(category)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_is_pinned ON posts(is_pinned)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_pinned_until ON posts(pinned_until)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_comments_post_id ON comments(post_id)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_comments_user_id ON comments(user_id)')

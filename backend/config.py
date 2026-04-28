@@ -29,4 +29,19 @@ class Config:
         'gold_above': '黄金以上'
     }
     
+    CATEGORIES = {
+        'notice': '公告通知',
+        'activity': '活动公告',
+        'task': '任务招募',
+        'job': '招聘信息',
+        'trade': '交易信息',
+        'other': '其他'
+    }
+    
+    PINNED_CONFIG = {
+        'price': 10,
+        'duration_days': 7,
+        'max_count': 3
+    }
+    
     CORS_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173']

@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timedelta
 from database import execute, fetchone, fetchall
 from config import Config
 from models.user import User
@@ -13,16 +14,19 @@ class Post:
         self.images = kwargs.get('images')
         self.is_task = kwargs.get('is_task', 0)
         self.views_count = kwargs.get('views_count', 0)
+        self.category = kwargs.get('category', 'other')
+        self.is_pinned = kwargs.get('is_pinned', 0)
+        self.pinned_until = kwargs.get('pinned_until')
         self.created_at = kwargs.get('created_at')
         self._author = None
     
     @staticmethod
-    def create(user_id, title, content, view_permission='all', images=None, is_task=0):
+    def create(user_id, title, content, view_permission='all', images=None, is_task=0, category='other'):
         images_json = json.dumps(images) if images else None
         post_id = execute(
-            '''INSERT INTO posts (user_id, title, content, view_permission, images, is_task)
-               VALUES (%s, %s, %s, %s, %s, %s) RETURNING id''',
-            (user_id, title, content, view_permission, images_json, is_task)
+            '''INSERT INTO posts (user_id, title, content, view_permission, images, is_task, category)
+               VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id''',
+            (user_id, title, content, view_permission, images_json, is_task, category)
         )
         return Post.get_by_id(post_id)
     
@@ -41,9 +45,50 @@ class Post:
         return [Post(**row) for row in rows]
     
     @staticmethod
-    def get_visible_posts(current_user=None, limit=20, offset=0):
+    def get_active_pinned_posts(current_user=None, limit=3):
+        now = datetime.now()
+        base_conditions = ['is_pinned = %s', '(pinned_until IS NULL OR pinned_until > %s)']
+        params = [1, now]
+        
         if current_user is None:
-            return Post._get_public_posts(limit, offset)
+            base_conditions.append('view_permission = %s')
+            params.append('all')
+        else:
+            user_level = current_user.level
+            level_order = list(Config.USER_LEVELS.keys())
+            user_level_index = level_order.index(user_level)
+            
+            visibility_conditions = ['view_permission = %s']
+            params.append('all')
+            
+            visibility_conditions.append('view_permission = %s')
+            params.append('registered')
+            
+            silver_index = level_order.index('silver')
+            if user_level_index >= silver_index:
+                visibility_conditions.append('view_permission = %s')
+                params.append('silver_above')
+            
+            gold_index = level_order.index('gold')
+            if user_level_index >= gold_index:
+                visibility_conditions.append('view_permission = %s')
+                params.append('gold_above')
+            
+            visibility_str = ' OR '.join(visibility_conditions)
+            base_conditions.append(f'({visibility_str})')
+        
+        where_clause = ' AND '.join(base_conditions)
+        query = f'''SELECT * FROM posts WHERE {where_clause} 
+                    ORDER BY created_at DESC LIMIT %s'''
+        params.append(limit)
+        
+        rows = fetchall(query, params)
+        return [Post(**row) for row in rows]
+    
+    @staticmethod
+    def get_visible_posts(current_user=None, category=None, limit=20, offset=0):
+        if current_user is None:
+            return Post._get_public_posts(category, limit, offset)
         
         user_level = current_user.level
         level_order = list(Config.USER_LEVELS.keys())
@@ -65,7 +110,15 @@ class Post:
             conditions.append('view_permission = %s')
             params.append('gold_above')
         
-        where_clause = ' OR '.join(conditions)
+        if category and category != 'all':
+            conditions.append('category = %s')
+            params.append(category)
+        
+        conditions.append('is_pinned = %s')
+        params.append(0)
+        
+        where_clause = ' OR '.join(conditions[:-2])
+        where_clause = f'({where_clause}) AND {conditions[-2]} AND {conditions[-1]}'
         query = f'''SELECT * FROM posts WHERE {where_clause} 
                     ORDER BY created_at DESC LIMIT %s OFFSET %s'''
         params.extend([limit, offset])
@@ -74,12 +127,23 @@ class Post:
         return [Post(**row) for row in rows]
     
     @staticmethod
-    def _get_public_posts(limit=20, offset=0):
-        rows = fetchall(
-            '''SELECT * FROM posts WHERE view_permission = %s 
-               ORDER BY created_at DESC LIMIT %s OFFSET %s''',
-            ('all', limit, offset)
-        )
+    def _get_public_posts(category=None, limit=20, offset=0):
+        conditions = ['view_permission = %s']
+        params = ['all']
+        
+        if category and category != 'all':
+            conditions.append('category = %s')
+            params.append(category)
+        
+        conditions.append('is_pinned = %s')
+        params.append(0)
+        
+        where_clause = ' AND '.join(conditions)
+        query = f'''SELECT * FROM posts WHERE {where_clause} 
+                   ORDER BY created_at DESC LIMIT %s OFFSET %s'''
+        params.extend([limit, offset])
+        
+        rows = fetchall(query, params)
         return [Post(**row) for row in rows]
     
     def is_visible_to(self, user):
@@ -118,12 +182,33 @@ class Post:
         self.views_count += 1
         return True
     
+    def pin(self, duration_days=None):
+        if duration_days is None:
+            duration_days = Config.PINNED_CONFIG['duration_days']
+        pinned_until = datetime.now() + timedelta(days=duration_days)
+        execute(
+            'UPDATE posts SET is_pinned = %s, pinned_until = %s WHERE id = %s',
+            (1, pinned_until, self.id)
+        )
+        self.is_pinned = 1
+        self.pinned_until = pinned_until
+        return True
+    
+    def unpin(self):
+        execute(
+            'UPDATE posts SET is_pinned = %s, pinned_until = %s WHERE id = %s',
+            (0, None, self.id)
+        )
+        self.is_pinned = 0
+        self.pinned_until = None
+        return True
+    
     def delete(self):
         execute('DELETE FROM posts WHERE id = %s', (self.id,))
         return True
     
     @staticmethod
-    def search_posts(current_user=None, keyword=None, post_type=None, sort_by='latest', limit=20, offset=0):
+    def search_posts(current_user=None, keyword=None, post_type=None, sort_by='latest', category=None, limit=20, offset=0):
         base_conditions = []
         params = []
         
@@ -167,6 +252,13 @@ class Post:
                 base_conditions.append('is_task = %s')
                 params.append(1)
         
+        if category and category != 'all':
+            base_conditions.append('category = %s')
+            params.append(category)
+        
+        base_conditions.append('is_pinned = %s')
+        params.append(0)
+        
         where_clause = ' AND '.join(base_conditions) if base_conditions else '1=1'
         
         order_clause = 'created_at DESC'
@@ -196,6 +288,16 @@ class Post:
     def get_view_permission_name(self):
         return Config.VIEW_PERMISSIONS.get(self.view_permission, '所有用户')
     
+    def get_category_name(self):
+        return Config.CATEGORIES.get(self.category, '其他')
+    
+    def is_pinned_active(self):
+        if not self.is_pinned:
+            return False
+        if self.pinned_until is None:
+            return True
+        return datetime.now() < self.pinned_until
+    
     def to_dict(self, include_author=False):
         data = {
             'id': self.id,
@@ -207,6 +309,11 @@ class Post:
             'images': self.get_images_list(),
             'is_task': self.is_task,
             'views_count': self.views_count,
+            'category': self.category,
+            'category_name': self.get_category_name(),
+            'is_pinned': self.is_pinned,
+            'is_pinned_active': self.is_pinned_active(),
+            'pinned_until': self.pinned_until.isoformat() if self.pinned_until else None,
             'created_at': self.created_at
         }
         

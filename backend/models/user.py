@@ -79,13 +79,14 @@ class User:
         return True
     
     def add_balance(self, amount):
-        if amount <= 0:
+        new_balance = self.balance + amount
+        if new_balance < 0:
             return False
         
-        self.balance += amount
+        self.balance = new_balance
         execute(
-            'UPDATE users SET balance = balance + %s WHERE id = %s',
-            (amount, self.id)
+            'UPDATE users SET balance = %s WHERE id = %s',
+            (self.balance, self.id)
         )
         return True
     
