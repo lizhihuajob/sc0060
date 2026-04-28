@@ -22,6 +22,12 @@ class Config:
         'diamond': {'name': '钻石', 'posts_limit': 32, 'price': 300}
     }
     
+    PIN_CONFIG = {
+        'price': 20,
+        'duration_days': 7,
+        'max_count': 3
+    }
+    
     VIEW_PERMISSIONS = {
         'all': '所有用户',
         'registered': '平台注册者',

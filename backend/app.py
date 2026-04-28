@@ -40,7 +40,8 @@ def get_current_user():
 def get_config():
     return jsonify({
         'user_levels': Config.USER_LEVELS,
-        'view_permissions': Config.VIEW_PERMISSIONS
+        'view_permissions': Config.VIEW_PERMISSIONS,
+        'pin_config': Config.PIN_CONFIG
     })
 
 @app.route('/api/auth/me', methods=['GET'])
@@ -241,6 +242,65 @@ def delete_post(post_id):
     return jsonify({
         'success': True,
         'message': '删除成功'
+    })
+
+@app.route('/api/posts/pinned', methods=['GET'])
+def get_pinned_posts():
+    current_user = get_current_user()
+    limit = request.args.get('limit', 3, type=int)
+    
+    posts = Post.get_active_pinned_posts(current_user, limit=limit)
+    
+    return jsonify({
+        'success': True,
+        'posts': [post.to_dict(include_author=True) for post in posts],
+        'config': Config.PIN_CONFIG
+    })
+
+@app.route('/api/posts/<int:post_id>/pin', methods=['POST'])
+@login_required
+def pin_post(post_id):
+    user = get_current_user()
+    post = Post.get_by_id(post_id)
+    
+    if not post:
+        return jsonify({'success': False, 'message': '该公告不存在'}), 404
+    
+    if not post.is_owned_by(user):
+        return jsonify({'success': False, 'message': '您没有权限操作该公告'}), 403
+    
+    if post.is_pinned:
+        return jsonify({'success': False, 'message': '该公告已置顶'}), 400
+    
+    pin_count = Post.get_pinned_count()
+    if pin_count >= Config.PIN_CONFIG['max_count']:
+        return jsonify({
+            'success': False, 
+            'message': f'置顶位置已满，最多只能同时有 {Config.PIN_CONFIG["max_count"]} 条置顶消息'
+        }), 400
+    
+    pin_price = Config.PIN_CONFIG['price']
+    if user.balance < pin_price:
+        return jsonify({
+            'success': False, 
+            'message': f'余额不足，置顶需要 ¥{pin_price}，当前余额 ¥{user.balance}'
+        }), 400
+    
+    user.add_balance(-pin_price)
+    Transaction.create(
+        user.id,
+        -pin_price,
+        Transaction.TYPE_UPGRADE,
+        f'置顶公告「{post.title[:20]}...」，有效期{Config.PIN_CONFIG["duration_days"]}天'
+    )
+    
+    post.pin(duration_days=Config.PIN_CONFIG['duration_days'])
+    
+    return jsonify({
+        'success': True,
+        'message': f'置顶成功！有效期{Config.PIN_CONFIG["duration_days"]}天',
+        'post': post.to_dict(include_author=True),
+        'user': user.to_dict()
     })
 
 @app.route('/api/posts/<int:post_id>/comments', methods=['GET'])
