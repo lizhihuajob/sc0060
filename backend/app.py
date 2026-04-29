@@ -9,7 +9,7 @@ from config import Config
 from init_db import init_database
 init_database()
 
-from models import User, Post, Transaction, Comment, Favorite
+from models import User, Post, Transaction, Comment, Favorite, Follow, Like, Notification
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -131,13 +131,20 @@ def get_posts():
         )
     
     favorited_ids = []
+    liked_ids = []
     if current_user:
         favorited_ids = Favorite.get_favorited_post_ids(current_user.id)
+        liked_ids = Like.get_liked_post_ids(current_user.id)
+    
+    post_ids = [post.id for post in posts]
+    likes_count = Like.get_post_likes_count_batch(post_ids)
     
     posts_data = []
     for post in posts:
         post_dict = post.to_dict(include_author=True)
         post_dict['is_favorited'] = post.id in favorited_ids
+        post_dict['is_liked'] = post.id in liked_ids
+        post_dict['likes_count'] = likes_count.get(post.id, 0)
         posts_data.append(post_dict)
     
     return jsonify({
@@ -162,12 +169,16 @@ def get_post_detail(post_id):
     post.increment_views()
     comments = Comment.get_by_post(post_id)
     comments_count = Comment.count_by_post(post_id)
+    likes_count = Like.count_by_post(post_id)
     
     post_dict = post.to_dict(include_author=True)
     if current_user:
         post_dict['is_favorited'] = Favorite.is_favorited(current_user.id, post_id)
+        post_dict['is_liked'] = Like.is_liked(current_user.id, post_id)
     else:
         post_dict['is_favorited'] = False
+        post_dict['is_liked'] = False
+    post_dict['likes_count'] = likes_count
     
     return jsonify({
         'success': True,
@@ -235,6 +246,11 @@ def create_post():
     
     user.increment_posts_count()
     
+    if not is_task:
+        follower_ids = Follow.get_follower_ids(user.id)
+        if follower_ids:
+            Notification.notify_new_post(post, follower_ids)
+    
     return jsonify({
         'success': True,
         'message': '任务发布成功！' if is_task else '公告发布成功！',
@@ -268,13 +284,20 @@ def get_pinned_posts():
     posts = Post.get_active_pinned_posts(current_user, limit=limit)
     
     favorited_ids = []
+    liked_ids = []
     if current_user:
         favorited_ids = Favorite.get_favorited_post_ids(current_user.id)
+        liked_ids = Like.get_liked_post_ids(current_user.id)
+    
+    post_ids = [post.id for post in posts]
+    likes_count = Like.get_post_likes_count_batch(post_ids)
     
     posts_data = []
     for post in posts:
         post_dict = post.to_dict(include_author=True)
         post_dict['is_favorited'] = post.id in favorited_ids
+        post_dict['is_liked'] = post.id in liked_ids
+        post_dict['likes_count'] = likes_count.get(post.id, 0)
         posts_data.append(post_dict)
     
     return jsonify({
@@ -321,6 +344,8 @@ def pin_post(post_id):
     )
     
     post.pin(duration_days=Config.PIN_CONFIG['duration_days'])
+    
+    Notification.notify_pin(post)
     
     return jsonify({
         'success': True,
@@ -407,10 +432,18 @@ def delete_comment(post_id, comment_id):
 def get_profile():
     user = get_current_user()
     transactions = Transaction.get_by_user(user.id, limit=10)
+    followers_count = Follow.count_followers(user.id)
+    following_count = Follow.count_followings(user.id)
+    unread_notifications_count = Notification.count_unread(user.id)
+    
+    user_dict = user.to_dict()
+    user_dict['followers_count'] = followers_count
+    user_dict['following_count'] = following_count
+    user_dict['unread_notifications_count'] = unread_notifications_count
     
     return jsonify({
         'success': True,
-        'user': user.to_dict(),
+        'user': user_dict,
         'transactions': [t.to_dict() for t in transactions]
     })
 
@@ -584,9 +617,230 @@ def get_user_favorites():
         'has_more': len(posts_data) >= per_page
     })
 
-@app.route('/api/uploads/<filename>')
-def uploaded_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+@app.route('/api/users/<int:user_id>/follow', methods=['POST'])
+@login_required
+def follow_user(user_id):
+    current_user = get_current_user()
+    
+    if current_user.id == user_id:
+        return jsonify({'success': False, 'message': '不能关注自己'}), 400
+    
+    target_user = User.get_by_id(user_id)
+    if not target_user:
+        return jsonify({'success': False, 'message': '用户不存在'}), 404
+    
+    existing = Follow.get_by_users(current_user.id, user_id)
+    if existing:
+        return jsonify({'success': False, 'message': '已经关注了该用户'}), 400
+    
+    follow = Follow.create(current_user.id, user_id)
+    if follow:
+        Notification.notify_follow(current_user, target_user)
+    
+    return jsonify({
+        'success': True,
+        'message': '关注成功',
+        'is_following': True
+    })
+
+@app.route('/api/users/<int:user_id>/unfollow', methods=['POST'])
+@login_required
+def unfollow_user(user_id):
+    current_user = get_current_user()
+    
+    if current_user.id == user_id:
+        return jsonify({'success': False, 'message': '不能取关自己'}), 400
+    
+    Follow.unfollow(current_user.id, user_id)
+    
+    return jsonify({
+        'success': True,
+        'message': '已取消关注',
+        'is_following': False
+    })
+
+@app.route('/api/users/<int:user_id>/follow-status', methods=['GET'])
+def get_follow_status(user_id):
+    current_user = get_current_user()
+    is_following = False
+    if current_user:
+        is_following = Follow.is_following(current_user.id, user_id)
+    
+    return jsonify({
+        'success': True,
+        'is_following': is_following,
+        'followers_count': Follow.count_followers(user_id),
+        'following_count': Follow.count_followings(user_id)
+    })
+
+@app.route('/api/user/followers', methods=['GET'])
+@login_required
+def get_my_followers():
+    user = get_current_user()
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    offset = (page - 1) * per_page
+    
+    rows = Follow.get_followers(user.id, limit=per_page, offset=offset)
+    
+    followers_data = []
+    for row in rows:
+        followers_data.append({
+            'id': row.get('follower_id'),
+            'username': row.get('username'),
+            'avatar': row.get('avatar'),
+            'level': row.get('level'),
+            'level_name': Config.USER_LEVELS.get(row.get('level'), {}).get('name', '青铜'),
+            'followed_at': row.get('created_at')
+        })
+    
+    return jsonify({
+        'success': True,
+        'followers': followers_data,
+        'total': Follow.count_followers(user.id),
+        'page': page,
+        'per_page': per_page,
+        'has_more': len(followers_data) >= per_page
+    })
+
+@app.route('/api/user/following', methods=['GET'])
+@login_required
+def get_my_following():
+    user = get_current_user()
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    offset = (page - 1) * per_page
+    
+    rows = Follow.get_followings(user.id, limit=per_page, offset=offset)
+    
+    following_data = []
+    for row in rows:
+        following_data.append({
+            'id': row.get('following_id'),
+            'username': row.get('username'),
+            'avatar': row.get('avatar'),
+            'level': row.get('level'),
+            'level_name': Config.USER_LEVELS.get(row.get('level'), {}).get('name', '青铜'),
+            'followed_at': row.get('created_at')
+        })
+    
+    return jsonify({
+        'success': True,
+        'following': following_data,
+        'total': Follow.count_followings(user.id),
+        'page': page,
+        'per_page': per_page,
+        'has_more': len(following_data) >= per_page
+    })
+
+@app.route('/api/posts/<int:post_id>/like', methods=['POST'])
+@login_required
+def toggle_like(post_id):
+    user = get_current_user()
+    post = Post.get_by_id(post_id)
+    
+    if not post:
+        return jsonify({'success': False, 'message': '该公告不存在'}), 404
+    
+    if not post.is_visible_to(user):
+        return jsonify({'success': False, 'message': '您没有权限点赞该公告'}), 403
+    
+    is_liked, likes_count = Like.toggle(user.id, post_id)
+    
+    return jsonify({
+        'success': True,
+        'is_liked': is_liked,
+        'likes_count': likes_count,
+        'message': '已点赞' if is_liked else '已取消点赞'
+    })
+
+@app.route('/api/notifications', methods=['GET'])
+@login_required
+def get_notifications():
+    user = get_current_user()
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    offset = (page - 1) * per_page
+    include_read = request.args.get('include_read', 'true').lower() == 'true'
+    
+    notifications = Notification.get_by_user(
+        user.id, 
+        limit=per_page, 
+        offset=offset,
+        include_read=include_read
+    )
+    
+    return jsonify({
+        'success': True,
+        'notifications': [n.to_dict() for n in notifications],
+        'unread_count': Notification.count_unread(user.id),
+        'page': page,
+        'per_page': per_page,
+        'has_more': len(notifications) >= per_page
+    })
+
+@app.route('/api/notifications/<int:notification_id>/read', methods=['POST'])
+@login_required
+def mark_notification_read(notification_id):
+    user = get_current_user()
+    notification = Notification.get_by_id(notification_id)
+    
+    if not notification:
+        return jsonify({'success': False, 'message': '通知不存在'}), 404
+    
+    if notification.user_id != user.id:
+        return jsonify({'success': False, 'message': '没有权限操作此通知'}), 403
+    
+    notification.mark_read()
+    
+    return jsonify({
+        'success': True,
+        'message': '已标记为已读'
+    })
+
+@app.route('/api/notifications/read-all', methods=['POST'])
+@login_required
+def mark_all_notifications_read():
+    user = get_current_user()
+    Notification.mark_all_as_read(user.id)
+    
+    return jsonify({
+        'success': True,
+        'message': '全部标记为已读'
+    })
+
+@app.route('/api/notifications/unread-count', methods=['GET'])
+@login_required
+def get_unread_notifications_count():
+    user = get_current_user()
+    count = Notification.count_unread(user.id)
+    
+    return jsonify({
+        'success': True,
+        'count': count
+    })
+
+@app.route('/api/users/<int:user_id>', methods=['GET'])
+def get_user_profile(user_id):
+    user = User.get_by_id(user_id)
+    
+    if not user:
+        return jsonify({'success': False, 'message': '用户不存在'}), 404
+    
+    current_user = get_current_user()
+    is_following = False
+    if current_user:
+        is_following = Follow.is_following(current_user.id, user.id)
+    
+    user_dict = user.to_dict()
+    user_dict['followers_count'] = Follow.count_followers(user.id)
+    user_dict['following_count'] = Follow.count_followings(user.id)
+    user_dict['is_following'] = is_following
+    
+    return jsonify({
+        'success': True,
+        'user': user_dict
+    })
 
 @app.errorhandler(404)
 def page_not_found(e):

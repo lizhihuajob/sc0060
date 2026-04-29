@@ -39,6 +39,16 @@
         </div>
 
         <div class="post-footer">
+          <div class="post-actions">
+            <span class="like-btn" :class="{ liked: post.is_liked }" @click="toggleLike">
+              <el-icon><Heart /></el-icon>
+              <span>{{ post.likes_count || 0 }} 点赞</span>
+            </span>
+            <span class="follow-btn" :class="{ following: isFollowing }" @click="toggleFollow" v-if="currentUser && currentUser.id !== post.author?.id">
+              <el-icon><UserFilled /></el-icon>
+              <span>{{ isFollowing ? '已关注' : '关注' }}</span>
+            </span>
+          </div>
           <div class="permission-info">
             <el-icon><View /></el-icon>
             <span>可见范围：{{ post.view_permission_name }}</span>
@@ -144,8 +154,8 @@
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, View, Loading, ChatDotRound, User, Delete } from '@element-plus/icons-vue'
-import { postApi, authApi } from '../services/api'
+import { ArrowLeft, View, Loading, ChatDotRound, User, Delete, Heart, UserFilled } from '@element-plus/icons-vue'
+import { postApi, authApi, userApi } from '../services/api'
 
 const router = useRouter()
 const route = useRoute()
@@ -157,6 +167,7 @@ const commentsCount = ref(0)
 const loadingComments = ref(false)
 const newComment = ref('')
 const submitting = ref(false)
+const isFollowing = ref(false)
 
 const loadPost = async () => {
   loading.value = true
@@ -166,6 +177,13 @@ const loadPost = async () => {
       post.value = response.data.post
       comments.value = response.data.comments || []
       commentsCount.value = response.data.comments_count || 0
+      
+      if (currentUser.value && post.value.author?.id && currentUser.value.id !== post.value.author.id) {
+        const statusResp = await userApi.getFollowStatus(post.value.author.id)
+        if (statusResp.data.success) {
+          isFollowing.value = statusResp.data.is_following
+        }
+      }
     }
   } catch (error) {
     console.error('加载帖子失败:', error)
@@ -182,6 +200,51 @@ const loadCurrentUser = async () => {
     }
   } catch {
     currentUser.value = null
+  }
+}
+
+const toggleLike = async () => {
+  if (!currentUser.value) {
+    ElMessage.warning('请先登录')
+    router.push('/login')
+    return
+  }
+  
+  try {
+    const response = await postApi.toggleLike(post.value.id)
+    if (response.data.success) {
+      post.value.is_liked = response.data.is_liked
+      post.value.likes_count = response.data.likes_count
+      ElMessage.success(response.data.message)
+    }
+  } catch (error) {
+    console.error('点赞失败:', error)
+  }
+}
+
+const toggleFollow = async () => {
+  if (!currentUser.value) {
+    ElMessage.warning('请先登录')
+    router.push('/login')
+    return
+  }
+  
+  if (!post.value.author?.id) return
+  
+  try {
+    let response
+    if (isFollowing.value) {
+      response = await userApi.unfollow(post.value.author.id)
+    } else {
+      response = await userApi.follow(post.value.author.id)
+    }
+    
+    if (response.data.success) {
+      isFollowing.value = response.data.is_following
+      ElMessage.success(isFollowing.value ? '关注成功' : '已取消关注')
+    }
+  } catch (error) {
+    console.error('关注操作失败:', error)
   }
 }
 
@@ -399,8 +462,48 @@ onMounted(() => {
   padding-top: 24px;
   border-top: 1px solid rgba(0, 0, 0, 0.08);
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  gap: 16px;
+}
+
+.post-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.like-btn,
+.follow-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border: 1px solid var(--color-border-light);
+  background: white;
+  color: var(--color-text);
+}
+
+.like-btn:hover,
+.follow-btn:hover {
+  background: var(--color-background);
+}
+
+.like-btn.liked {
+  color: var(--color-danger);
+  border-color: rgba(255, 59, 48, 0.3);
+  background: rgba(255, 59, 48, 0.05);
+}
+
+.follow-btn.following {
+  color: var(--color-primary);
+  border-color: rgba(0, 122, 255, 0.3);
+  background: rgba(0, 122, 255, 0.05);
 }
 
 .permission-info,

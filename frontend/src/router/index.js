@@ -28,6 +28,12 @@ const routes = [
     meta: { title: '个人中心', requiresAuth: true }
   },
   {
+    path: '/notifications',
+    name: 'Notifications',
+    component: () => import('../views/Notifications.vue'),
+    meta: { title: '通知消息', requiresAuth: true }
+  },
+  {
     path: '/my-posts',
     name: 'MyPosts',
     component: () => import('../views/MyPosts.vue'),
