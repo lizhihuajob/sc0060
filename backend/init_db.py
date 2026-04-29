@@ -45,6 +45,54 @@ def init_database():
             cursor.execute('ALTER TABLE posts ADD COLUMN pin_expires_at TIMESTAMP')
             print('Added missing column: posts.pin_expires_at')
         
+        cursor.execute('''
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = 'comments'
+            )
+        ''')
+        comments_table_exists = cursor.fetchone()[0]
+        
+        if not comments_table_exists:
+            cursor.execute('''
+                CREATE TABLE comments (
+                    id SERIAL PRIMARY KEY,
+                    post_id INTEGER NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    content TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE CASCADE,
+                    FOREIGN KEY (user_id) REFERENCES users (id)
+                )
+            ''')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_comments_post_id ON comments(post_id)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_comments_user_id ON comments(user_id)')
+            print('Created table: comments')
+        
+        cursor.execute('''
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = 'favorites'
+            )
+        ''')
+        favorites_table_exists = cursor.fetchone()[0]
+        
+        if not favorites_table_exists:
+            cursor.execute('''
+                CREATE TABLE favorites (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    post_id INTEGER NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+                    FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE CASCADE,
+                    UNIQUE(user_id, post_id)
+                )
+            ''')
+            cursor.execute('CREATE INDEX idx_favorites_user_id ON favorites(user_id)')
+            cursor.execute('CREATE INDEX idx_favorites_post_id ON favorites(post_id)')
+            print('Created table: favorites')
+        
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_views_count ON posts(views_count)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_is_pinned ON posts(is_pinned)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_pinned_at ON posts(pinned_at)')
@@ -108,12 +156,26 @@ def init_database():
         )
     ''')
     
+    cursor.execute('''
+        CREATE TABLE favorites (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            post_id INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+            FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE CASCADE,
+            UNIQUE(user_id, post_id)
+        )
+    ''')
+    
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_user_id ON posts(user_id)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_views_count ON posts(views_count)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_comments_post_id ON comments(post_id)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_comments_user_id ON comments(user_id)')
+    cursor.execute('CREATE INDEX idx_favorites_user_id ON favorites(user_id)')
+    cursor.execute('CREATE INDEX idx_favorites_post_id ON favorites(post_id)')
     
     conn.commit()
     conn.close()

@@ -71,6 +71,7 @@ export const postApi = {
   }),
   delete: (id) => apiClient.delete(`/posts/${id}`),
   pin: (id) => apiClient.post(`/posts/${id}/pin`),
+  toggleFavorite: (id) => apiClient.post(`/posts/${id}/favorite`),
   getComments: (postId, params) => apiClient.get(`/posts/${postId}/comments`, { params }),
   createComment: (postId, data) => apiClient.post(`/posts/${postId}/comments`, data),
   deleteComment: (postId, commentId) => apiClient.delete(`/posts/${postId}/comments/${commentId}`)
@@ -78,6 +79,7 @@ export const postApi = {
 
 export const userApi = {
   getProfile: () => apiClient.get('/user/profile'),
+  getFavorites: (params) => apiClient.get('/user/favorites', { params }),
   recharge: (amount) => apiClient.post('/user/recharge', { amount }),
   upgrade: (targetLevel) => apiClient.post('/user/upgrade', { target_level: targetLevel }),
   uploadAvatar: (data) => apiClient.post('/user/avatar', data, {

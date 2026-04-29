@@ -5,7 +5,24 @@
         <h1 class="page-title">个人中心</h1>
       </div>
 
-      <div class="profile-grid" v-if="user">
+      <div class="tab-nav">
+        <button 
+          class="tab-btn" 
+          :class="{ active: activeTab === 'profile' }"
+          @click="activeTab = 'profile'"
+        >
+          账户信息
+        </button>
+        <button 
+          class="tab-btn" 
+          :class="{ active: activeTab === 'favorites' }"
+          @click="activeTab = 'favorites'"
+        >
+          我的收藏
+        </button>
+      </div>
+
+      <div class="profile-grid" v-if="user" v-show="activeTab === 'profile'">
         <div class="profile-card card">
           <div class="profile-header">
             <div class="avatar-wrapper" @click="triggerAvatarUpload">
@@ -145,21 +162,116 @@
           </div>
         </div>
       </div>
+
+      <div class="favorites-section" v-show="activeTab === 'favorites'">
+        <div class="section-header">
+          <h3 class="section-title">
+            <el-icon><Star /></el-icon>
+            我的收藏
+          </h3>
+        </div>
+
+        <div class="posts-list" v-if="favorites.length > 0">
+          <div 
+            v-for="post in favorites" 
+            :key="post.id" 
+            class="post-item card"
+            @click="goToPost(post.id)"
+          >
+            <div class="post-main">
+              <div class="post-header-row">
+                <h3 class="post-title">{{ post.title }}</h3>
+                <span 
+                  class="favorite-btn favorited" 
+                  @click.stop="unfavorite(post)"
+                  title="取消收藏"
+                >
+                  <el-icon><Star /></el-icon>
+                </span>
+              </div>
+              <p class="post-excerpt">{{ truncate(post.content, 120) }}</p>
+              
+              <div class="post-images" v-if="post.images?.length > 0">
+                <div class="image-grid">
+                  <img 
+                    v-for="(img, imgIndex) in post.images.slice(0, 3)" 
+                    :key="imgIndex"
+                    :src="`/uploads/${img}`"
+                    class="post-image"
+                    alt="图片"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div class="post-footer-row">
+              <div class="post-meta-left">
+                <span class="author-name">{{ post.author?.username }}</span>
+                <span class="stat-item">
+                  <el-icon><View /></el-icon>
+                  {{ post.views_count }}
+                </span>
+              </div>
+              <span class="post-time">{{ formatTime(post.favorited_at || post.created_at) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="empty-state" v-else-if="!loadingFavorites">
+          <div class="empty-icon">
+            <svg width="80" height="80" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" stroke="#86868b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <h3 class="empty-title">暂无收藏</h3>
+          <p class="empty-desc">
+            去首页发现感兴趣的公告，点击星星图标即可收藏
+          </p>
+          <router-link to="/" class="btn-primary">
+            <el-icon><ArrowRight /></el-icon>
+            去首页
+          </router-link>
+        </div>
+
+        <div class="loading-state" v-else>
+          <div class="loading-spinner">
+            <div class="spinner-circle"></div>
+          </div>
+          <p>加载中...</p>
+        </div>
+
+        <div class="load-more" v-if="hasMoreFavorites && !loadingFavorites">
+          <button class="load-more-btn" @click="loadMoreFavorites" :disabled="loadingFavorites">
+            <span v-if="!loadingFavorites">加载更多</span>
+            <span v-else>加载中...</span>
+            <el-icon class="arrow-icon"><ArrowDown /></el-icon>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { User, Wallet, TrendCharts, Plus, Minus, Camera } from '@element-plus/icons-vue'
-import { userApi } from '../services/api'
+import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { User, Wallet, TrendCharts, Plus, Minus, Camera, Star, View, ArrowDown, ArrowRight } from '@element-plus/icons-vue'
+import { userApi, postApi } from '../services/api'
 
+const router = useRouter()
+
+const activeTab = ref('profile')
 const user = ref(null)
 const transactions = ref([])
 const avatarInput = ref(null)
 const uploadingAvatar = ref(false)
 const changingPassword = ref(false)
+
+const favorites = ref([])
+const loadingFavorites = ref(false)
+const favoritesPage = ref(1)
+const hasMoreFavorites = ref(true)
 
 const passwordForm = reactive({
   oldPassword: '',
@@ -176,6 +288,61 @@ const loadProfile = async () => {
     }
   } catch (error) {
     console.error('加载个人信息失败:', error)
+  }
+}
+
+const loadFavorites = async (append = false) => {
+  if (loadingFavorites.value) return
+  loadingFavorites.value = true
+  
+  try {
+    const response = await userApi.getFavorites({
+      page: favoritesPage.value,
+      per_page: 20
+    })
+    
+    if (response.data.success) {
+      const newPosts = response.data.posts
+      if (append) {
+        favorites.value = [...favorites.value, ...newPosts]
+      } else {
+        favorites.value = newPosts
+      }
+      hasMoreFavorites.value = response.data.has_more
+    }
+  } catch (error) {
+    console.error('加载收藏失败:', error)
+  } finally {
+    loadingFavorites.value = false
+  }
+}
+
+const loadMoreFavorites = () => {
+  favoritesPage.value++
+  loadFavorites(true)
+}
+
+const unfavorite = async (post) => {
+  try {
+    await ElMessageBox.confirm(
+      '确定要取消收藏这条公告吗？',
+      '确认取消',
+      {
+        confirmButtonText: '确定取消',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    const response = await postApi.toggleFavorite(post.id)
+    if (response.data.success) {
+      ElMessage.success('已取消收藏')
+      favorites.value = favorites.value.filter(p => p.id !== post.id)
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('取消收藏失败:', error)
+    }
   }
 }
 
@@ -255,8 +422,24 @@ const changePassword = async () => {
   }
 }
 
+const goToPost = (postId) => {
+  router.push(`/post/${postId}`)
+}
+
+const truncate = (text, length) => {
+  if (!text) return ''
+  if (text.length <= length) return text
+  return text.slice(0, length) + '...'
+}
+
+const formatTime = (time) => {
+  if (!time) return ''
+  return time.replace(' GMT', '')
+}
+
 onMounted(() => {
   loadProfile()
+  loadFavorites()
 })
 </script>
 
@@ -268,7 +451,7 @@ onMounted(() => {
 }
 
 .page-header {
-  margin-bottom: 32px;
+  margin-bottom: 24px;
 }
 
 .page-title {
@@ -277,6 +460,38 @@ onMounted(() => {
   letter-spacing: -0.003em;
   margin: 0;
   color: var(--color-text);
+}
+
+.tab-nav {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  padding: 4px;
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: var(--radius-md);
+  width: fit-content;
+}
+
+.tab-btn {
+  padding: 10px 20px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.tab-btn:hover {
+  color: var(--color-text);
+}
+
+.tab-btn.active {
+  background: white;
+  color: var(--color-text);
+  font-weight: var(--font-weight-medium);
+  box-shadow: var(--shadow-sm);
 }
 
 .profile-grid {
@@ -379,17 +594,17 @@ onMounted(() => {
 }
 
 .level-badge.gold {
-  background: linear-gradient(135deg, #ffd700 0%, #ffb347 100%);
+  background: var(--gradient-gold);
   color: #1d1d1f;
 }
 
 .level-badge.black {
-  background: linear-gradient(135deg, #2f2f2f 0%, #1a1a1a 100%);
+  background: var(--gradient-dark);
   color: white;
 }
 
 .level-badge.diamond {
-  background: linear-gradient(135deg, #b9f2ff 0%, #87ceeb 100%);
+  background: linear-gradient(135deg, #b9f2ff 0%, #64d2ff 100%);
   color: #1d1d1f;
 }
 
@@ -492,7 +707,7 @@ onMounted(() => {
 }
 
 .form-input::placeholder {
-  color: var(--color-text-secondary);
+  color: var(--color-text-tertiary);
 }
 
 .password-form .btn-primary {
@@ -628,6 +843,243 @@ onMounted(() => {
   color: var(--color-danger);
 }
 
+.favorites-section {
+  width: 100%;
+}
+
+.favorites-section .section-header {
+  margin-bottom: 24px;
+}
+
+.favorites-section .section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-xl);
+}
+
+.favorites-section .section-title .el-icon {
+  color: var(--color-danger);
+}
+
+.posts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.post-item {
+  width: 100%;
+  padding: 20px 24px;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+}
+
+.post-item:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--color-primary);
+}
+
+.post-main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.post-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.post-title {
+  flex: 1;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.4;
+  margin: 0;
+  color: var(--color-text);
+  transition: color var(--transition-fast);
+}
+
+.post-item:hover .post-title {
+  color: var(--color-primary);
+}
+
+.post-excerpt {
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.post-images {
+  margin-top: 8px;
+}
+
+.image-grid {
+  display: flex;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.post-image {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  background: var(--color-background);
+}
+
+.post-footer-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border-light);
+}
+
+.post-meta-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.author-name {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+}
+
+.post-time {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+}
+
+.favorite-btn {
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-tertiary);
+}
+
+.favorite-btn:hover {
+  background: rgba(255, 59, 48, 0.1);
+  color: var(--color-danger);
+}
+
+.favorite-btn.favorited {
+  color: var(--color-danger);
+}
+
+.empty-state,
+.loading-state {
+  text-align: center;
+  padding: 80px 20px;
+}
+
+.empty-icon {
+  margin-bottom: 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.empty-title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  margin: 0 0 8px;
+  color: var(--color-text);
+}
+
+.empty-desc {
+  font-size: var(--font-size-base);
+  color: var(--color-text-secondary);
+  margin: 0 0 24px;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.loading-spinner {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.spinner-circle {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--color-border-light);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-state p {
+  font-size: var(--font-size-base);
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.load-more {
+  text-align: center;
+  margin-top: 48px;
+}
+
+.load-more-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 40px;
+  background: white;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  font-size: var(--font-size-base);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.load-more-btn:hover:not(:disabled) {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.load-more-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.arrow-icon {
+  transition: transform var(--transition-fast);
+}
+
+.load-more-btn:hover .arrow-icon {
+  transform: translateY(2px);
+}
+
 @media (max-width: 768px) {
   .profile-grid {
     grid-template-columns: 1fr;
@@ -639,6 +1091,30 @@ onMounted(() => {
   
   .action-buttons {
     flex-direction: column;
+  }
+  
+  .post-item {
+    padding: 16px;
+  }
+  
+  .post-header-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .post-footer-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .post-meta-left {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .load-more-btn {
+    width: 100%;
   }
 }
 </style>
