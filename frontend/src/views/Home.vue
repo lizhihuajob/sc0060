@@ -75,6 +75,10 @@
                       <el-icon><Clock /></el-icon>
                       {{ formatTime(post.created_at) }}
                     </span>
+                    <span class="stat-item like-btn" :class="{ liked: post.is_liked }" @click.stop="toggleLike(post)">
+                      <el-icon><StarFilled /></el-icon>
+                      {{ post.likes_count || 0 }}
+                    </span>
                     <span 
                       class="stat-item favorite-btn" 
                       :class="{ favorited: post.is_favorited }"
@@ -194,6 +198,10 @@
                     <span class="stat-item">
                       <el-icon><View /></el-icon>
                       {{ post.views_count }}
+                    </span>
+                    <span class="stat-item like-btn" :class="{ liked: post.is_liked }" @click.stop="toggleLike(post)">
+                      <el-icon><StarFilled /></el-icon>
+                      {{ post.likes_count || 0 }}
                     </span>
                     <span class="stat-item">
                       <el-icon><Lock /></el-icon>
@@ -321,7 +329,7 @@ import { ElMessage } from 'element-plus'
 import { 
   Document, Clock, View, Loading, Search, Fire, 
   Star, Plus, ArrowDown, Close, Edit, Wallet,
-  Lock, CaretBottom, Sort, User
+  Lock, CaretBottom, Sort, User, StarFilled
 } from '@element-plus/icons-vue'
 import { postApi, authApi } from '../services/api'
 import { useUserStore } from '../stores/userStore'
@@ -376,6 +384,25 @@ const toggleFavorite = async (post) => {
     }
   } catch (error) {
     console.error('收藏失败:', error)
+  }
+}
+
+const toggleLike = async (post) => {
+  if (!user.value) {
+    ElMessage.warning('请先登录')
+    router.push('/login')
+    return
+  }
+  
+  try {
+    const response = await postApi.toggleLike(post.id)
+    if (response.data.success) {
+      post.is_liked = response.data.is_liked
+      post.likes_count = response.data.likes_count
+      ElMessage.success(response.data.message)
+    }
+  } catch (error) {
+    console.error('点赞失败:', error)
   }
 }
 
@@ -944,6 +971,26 @@ onMounted(async () => {
 }
 
 .favorite-btn.favorited:hover {
+  background: rgba(255, 59, 48, 0.15);
+}
+
+.like-btn {
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  padding: 4px;
+  border-radius: var(--radius-sm);
+}
+
+.like-btn:hover {
+  background: rgba(255, 59, 48, 0.1);
+  color: var(--color-danger);
+}
+
+.like-btn.liked {
+  color: var(--color-danger);
+}
+
+.like-btn.liked:hover {
   background: rgba(255, 59, 48, 0.15);
 }
 
