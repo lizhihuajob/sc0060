@@ -259,6 +259,10 @@ onMounted(() => {
   cursor: pointer;
   margin-bottom: 24px;
   transition: color var(--transition-fast);
+  width: 70%;
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .back-link:hover {
@@ -267,7 +271,9 @@ onMounted(() => {
 
 .post-card {
   padding: 40px;
+  width: 70%;
   max-width: 800px;
+  margin: 0 auto;
 }
 
 .post-header {
@@ -409,7 +415,10 @@ onMounted(() => {
 .comments-section {
   margin-top: 24px;
   padding: 32px;
+  width: 70%;
   max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .comments-header {
@@ -641,7 +650,10 @@ onMounted(() => {
 }
 
 @media (max-width: 768px) {
-  .post-card {
+  .back-link,
+  .post-card,
+  .comments-section {
+    width: 100%;
     padding: 24px;
   }
   
