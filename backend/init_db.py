@@ -48,6 +48,30 @@ def init_database():
         cursor.execute('''
             SELECT EXISTS (
                 SELECT FROM information_schema.tables 
+                WHERE table_name = 'comments'
+            )
+        ''')
+        comments_table_exists = cursor.fetchone()[0]
+        
+        if not comments_table_exists:
+            cursor.execute('''
+                CREATE TABLE comments (
+                    id SERIAL PRIMARY KEY,
+                    post_id INTEGER NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    content TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE CASCADE,
+                    FOREIGN KEY (user_id) REFERENCES users (id)
+                )
+            ''')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_comments_post_id ON comments(post_id)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_comments_user_id ON comments(user_id)')
+            print('Created table: comments')
+        
+        cursor.execute('''
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
                 WHERE table_name = 'favorites'
             )
         ''')

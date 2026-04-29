@@ -837,9 +837,9 @@ onMounted(async () => {
 }
 
 .pinned-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .pinned-card {
@@ -1274,10 +1274,6 @@ onMounted(async () => {
   .sidebar {
     width: 280px;
   }
-  
-  .pinned-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
 }
 
 @media (max-width: 992px) {
@@ -1300,10 +1296,6 @@ onMounted(async () => {
   
   .sidebar-card {
     margin-bottom: 0;
-  }
-  
-  .pinned-grid {
-    grid-template-columns: 1fr;
   }
 }
 
