@@ -46,7 +46,9 @@ def fetchone(query, params=None):
             cursor.execute(query)
         row = cursor.fetchone()
         cursor.close()
-        return dict(row) if row else None
+        if row is None:
+            return None
+        return {k: v for k, v in row.items()}
     finally:
         conn.close()
 
@@ -60,6 +62,6 @@ def fetchall(query, params=None):
             cursor.execute(query)
         rows = cursor.fetchall()
         cursor.close()
-        return [dict(row) for row in rows] if rows else []
+        return [{k: v for k, v in row.items()} for row in rows] if rows else []
     finally:
         conn.close()

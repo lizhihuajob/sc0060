@@ -53,28 +53,17 @@
             </div>
             <div class="pinned-grid">
               <div 
-                v-for="(post, index) in pinnedPosts" 
+                v-for="post in pinnedPosts" 
                 :key="post.id" 
                 class="pinned-card"
-                :style="{ animationDelay: `${index * 0.1}s` }"
                 @click="goToPost(post.id)"
               >
-                <div class="pinned-header">
-                  <div class="pinned-rank">{{ index + 1 }}</div>
-                  <div class="pinned-meta">
-                    <span class="pinned-tag">置顶</span>
-                    <span class="type-badge" :class="post.is_task ? 'task' : 'notice'">
-                      {{ post.is_task ? '任务' : '公告' }}
-                    </span>
-                  </div>
-                </div>
                 <div class="pinned-content">
                   <h3 class="pinned-title">{{ post.title }}</h3>
                   <p class="pinned-excerpt">{{ truncate(post.content, 80) }}</p>
                 </div>
                 <div class="pinned-footer">
                   <div class="pinned-author">
-                    <span class="level-badge" :class="post.author?.level">{{ post.author?.level_name }}</span>
                     <span class="author-name">{{ post.author?.username }}</span>
                   </div>
                   <div class="pinned-stats">
@@ -85,6 +74,13 @@
                     <span class="stat-item">
                       <el-icon><Clock /></el-icon>
                       {{ formatTime(post.created_at) }}
+                    </span>
+                    <span 
+                      class="stat-item favorite-btn" 
+                      :class="{ favorited: post.is_favorited }"
+                      @click.stop="toggleFavorite(post)"
+                    >
+                      <el-icon><Star /></el-icon>
                     </span>
                   </div>
                 </div>
@@ -159,45 +155,42 @@
               </div>
             </div>
 
-            <div class="posts-grid" v-if="posts.length > 0">
+            <div class="posts-list" v-if="posts.length > 0">
               <div 
-                v-for="(post, index) in posts" 
+                v-for="post in posts" 
                 :key="post.id" 
-                class="post-card card"
-                :style="{ animationDelay: `${index * 0.05}s` }"
+                class="post-item card"
                 @click="goToPost(post.id)"
               >
-                <div class="post-header">
-                  <div class="post-type">
-                    <span class="type-badge" :class="post.is_task ? 'task' : 'notice'">
-                      {{ post.is_task ? '任务' : '公告' }}
+                <div class="post-main">
+                  <div class="post-header-row">
+                    <h3 class="post-title">{{ post.title }}</h3>
+                    <span 
+                      class="favorite-btn" 
+                      :class="{ favorited: post.is_favorited }"
+                      @click.stop="toggleFavorite(post)"
+                    >
+                      <el-icon><Star /></el-icon>
                     </span>
                   </div>
-                  <div class="post-author">
-                    <span class="level-badge" :class="post.author?.level">{{ post.author?.level_name }}</span>
-                    <span class="author-name">{{ post.author?.username }}</span>
-                  </div>
-                </div>
-                
-                <div class="post-content">
-                  <h3 class="post-title">{{ post.title }}</h3>
                   <p class="post-excerpt">{{ truncate(post.content, 120) }}</p>
-                </div>
-
-                <div class="post-images" v-if="post.images?.length > 0">
-                  <div class="image-grid">
-                    <img 
-                      v-for="(img, imgIndex) in post.images.slice(0, 3)" 
-                      :key="imgIndex"
-                      :src="`/uploads/${img}`"
-                      class="post-image"
-                      alt="图片"
-                    />
+                  
+                  <div class="post-images" v-if="post.images?.length > 0">
+                    <div class="image-grid">
+                      <img 
+                        v-for="(img, imgIndex) in post.images.slice(0, 3)" 
+                        :key="imgIndex"
+                        :src="`/uploads/${img}`"
+                        class="post-image"
+                        alt="图片"
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <div class="post-footer">
-                  <div class="post-stats">
+                <div class="post-footer-row">
+                  <div class="post-meta-left">
+                    <span class="author-name">{{ post.author?.username }}</span>
                     <span class="stat-item">
                       <el-icon><View /></el-icon>
                       {{ post.views_count }}
@@ -301,6 +294,12 @@
                 </div>
                 <span>我的发布</span>
               </router-link>
+              <router-link to="/profile" class="action-item" v-if="user">
+                <div class="action-icon profile-icon">
+                  <el-icon><User /></el-icon>
+                </div>
+                <span>个人中心</span>
+              </router-link>
               <router-link to="/recharge" class="action-item" v-if="user">
                 <div class="action-icon recharge-icon">
                   <el-icon><Wallet /></el-icon>
@@ -318,16 +317,17 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { 
   Document, Clock, View, Loading, Search, Fire, 
   Star, Plus, ArrowDown, Close, Edit, Wallet,
-  Lock, CaretBottom, Sort
+  Lock, CaretBottom, Sort, User
 } from '@element-plus/icons-vue'
-import { postApi } from '../services/api'
+import { postApi, authApi } from '../services/api'
 import { useUserStore } from '../stores/userStore'
 
 const router = useRouter()
-const { user } = useUserStore()
+const { user, fetchUser } = useUserStore()
 
 const posts = ref([])
 const pinnedPosts = ref([])
@@ -360,6 +360,24 @@ const currentSortLabel = computed(() => {
   const sort = sortOptions.find(s => s.value === sortBy.value)
   return sort ? sort.label : '最新'
 })
+
+const toggleFavorite = async (post) => {
+  if (!user.value) {
+    ElMessage.warning('请先登录')
+    router.push('/login')
+    return
+  }
+  
+  try {
+    const response = await postApi.toggleFavorite(post.id)
+    if (response.data.success) {
+      post.is_favorited = response.data.is_favorited
+      ElMessage.success(response.data.message)
+    }
+  } catch (error) {
+    console.error('收藏失败:', error)
+  }
+}
 
 const loadPinnedPosts = async () => {
   try {
@@ -462,7 +480,8 @@ const formatTime = (time) => {
   return time.replace(' GMT', '')
 }
 
-onMounted(() => {
+onMounted(async () => {
+  await fetchUser()
   loadPinnedPosts()
   loadPosts()
 })
@@ -832,16 +851,6 @@ onMounted(() => {
   transition: all var(--transition-normal);
   border: 1px solid var(--color-border-light);
   overflow: hidden;
-  animation: slideUp 0.5s ease forwards;
-  opacity: 0;
-  transform: translateY(20px);
-}
-
-@keyframes slideUp {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 .pinned-card:hover {
@@ -861,69 +870,6 @@ onMounted(() => {
   opacity: 0;
   transition: opacity var(--transition-slow);
   pointer-events: none;
-}
-
-.pinned-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.pinned-rank {
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--gradient-primary);
-  color: white;
-  border-radius: var(--radius-md);
-  font-weight: var(--font-weight-bold);
-  font-size: var(--font-size-lg);
-}
-
-.pinned-card:first-child .pinned-rank {
-  background: var(--gradient-gold);
-}
-
-.pinned-card:nth-child(2) .pinned-rank {
-  background: linear-gradient(135deg, #C0C0C0 0%, #A8A8A8 100%);
-}
-
-.pinned-card:nth-child(3) .pinned-rank {
-  background: linear-gradient(135deg, #CD7F32 0%, #8B4513 100%);
-}
-
-.pinned-meta {
-  display: flex;
-  gap: 8px;
-}
-
-.pinned-tag {
-  padding: 4px 10px;
-  background: var(--gradient-pinned);
-  color: white;
-  border-radius: var(--radius-full);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-}
-
-.type-badge {
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-  padding: 4px 10px;
-  border-radius: var(--radius-full);
-}
-
-.type-badge.notice {
-  background: rgba(0, 122, 255, 0.12);
-  color: var(--color-primary);
-}
-
-.type-badge.task {
-  background: rgba(255, 149, 0, 0.12);
-  color: var(--color-warning);
 }
 
 .pinned-content {
@@ -981,70 +927,73 @@ onMounted(() => {
   color: var(--color-text-tertiary);
 }
 
+.favorite-btn {
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  padding: 4px;
+  border-radius: var(--radius-sm);
+}
+
+.favorite-btn:hover {
+  background: rgba(255, 59, 48, 0.1);
+  color: var(--color-danger);
+}
+
+.favorite-btn.favorited {
+  color: var(--color-danger);
+}
+
+.favorite-btn.favorited:hover {
+  background: rgba(255, 59, 48, 0.15);
+}
+
 .posts-section {
   position: relative;
 }
 
-.posts-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 24px;
+.posts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
-.post-card {
-  padding: 24px;
+.post-item {
+  width: 100%;
+  padding: 20px 24px;
   cursor: pointer;
-  animation: fadeInUp 0.4s ease forwards;
-  opacity: 0;
-  transform: translateY(10px);
+  transition: all var(--transition-normal);
 }
 
-@keyframes fadeInUp {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.post-card:hover {
-  transform: translateY(-4px);
+.post-item:hover {
+  transform: translateY(-2px);
   box-shadow: var(--shadow-lg);
   border-color: var(--color-primary);
 }
 
-.post-header {
+.post-main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.post-header-row {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.post-type {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.post-author {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.post-content {
-  margin-bottom: 16px;
+  align-items: flex-start;
+  gap: 16px;
 }
 
 .post-title {
+  flex: 1;
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
   line-height: 1.4;
-  margin: 0 0 8px;
+  margin: 0;
   color: var(--color-text);
   transition: color var(--transition-fast);
 }
 
-.post-card:hover .post-title {
+.post-item:hover .post-title {
   color: var(--color-primary);
 }
 
@@ -1060,7 +1009,7 @@ onMounted(() => {
 }
 
 .post-images {
-  margin-bottom: 16px;
+  margin-top: 8px;
 }
 
 .image-grid {
@@ -1077,16 +1026,18 @@ onMounted(() => {
   background: var(--color-background);
 }
 
-.post-footer {
+.post-footer-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-top: 16px;
   padding-top: 12px;
   border-top: 1px solid var(--color-border-light);
 }
 
-.post-stats {
+.post-meta-left {
   display: flex;
+  align-items: center;
   gap: 16px;
 }
 
@@ -1303,6 +1254,11 @@ onMounted(() => {
   color: var(--color-success);
 }
 
+.profile-icon {
+  background: rgba(88, 86, 214, 0.12);
+  color: #5856d6;
+}
+
 .recharge-icon {
   background: rgba(255, 149, 0, 0.12);
   color: var(--color-warning);
@@ -1395,13 +1351,24 @@ onMounted(() => {
     grid-template-columns: 1fr;
   }
   
-  .posts-grid {
-    grid-template-columns: 1fr;
-    gap: 16px;
+  .post-item {
+    padding: 16px;
   }
   
-  .post-card {
-    padding: 20px;
+  .post-header-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .post-footer-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .post-meta-left {
+    width: 100%;
+    justify-content: space-between;
   }
   
   .load-more-btn {
@@ -1428,16 +1395,6 @@ onMounted(() => {
   
   .pinned-card {
     padding: 20px;
-  }
-  
-  .pinned-rank {
-    width: 32px;
-    height: 32px;
-    font-size: var(--font-size-base);
-  }
-  
-  .pinned-header {
-    margin-bottom: 12px;
   }
   
   .pinned-footer {

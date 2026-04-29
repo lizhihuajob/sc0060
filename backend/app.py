@@ -9,7 +9,7 @@ from config import Config
 from init_db import init_database
 init_database()
 
-from models import User, Post, Transaction, Comment
+from models import User, Post, Transaction, Comment, Favorite
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -115,11 +115,11 @@ def get_posts():
     post_type = request.args.get('type', 'all')
     sort_by = request.args.get('sort', 'latest')
     
+    current_user = get_current_user()
+    
     if not keyword and post_type == 'all' and sort_by == 'latest':
-        current_user = get_current_user()
         posts = Post.get_visible_posts(current_user, limit=per_page, offset=offset)
     else:
-        current_user = get_current_user()
         search_type = None if post_type == 'all' else post_type
         posts = Post.search_posts(
             current_user=current_user,
@@ -130,9 +130,19 @@ def get_posts():
             offset=offset
         )
     
+    favorited_ids = []
+    if current_user:
+        favorited_ids = Favorite.get_favorited_post_ids(current_user.id)
+    
+    posts_data = []
+    for post in posts:
+        post_dict = post.to_dict(include_author=True)
+        post_dict['is_favorited'] = post.id in favorited_ids
+        posts_data.append(post_dict)
+    
     return jsonify({
         'success': True,
-        'posts': [post.to_dict(include_author=True) for post in posts],
+        'posts': posts_data,
         'page': page,
         'per_page': per_page,
         'has_more': len(posts) >= per_page
@@ -153,9 +163,15 @@ def get_post_detail(post_id):
     comments = Comment.get_by_post(post_id)
     comments_count = Comment.count_by_post(post_id)
     
+    post_dict = post.to_dict(include_author=True)
+    if current_user:
+        post_dict['is_favorited'] = Favorite.is_favorited(current_user.id, post_id)
+    else:
+        post_dict['is_favorited'] = False
+    
     return jsonify({
         'success': True,
-        'post': post.to_dict(include_author=True),
+        'post': post_dict,
         'comments': [c.to_dict(include_author=True) for c in comments],
         'comments_count': comments_count
     })
@@ -251,9 +267,19 @@ def get_pinned_posts():
     
     posts = Post.get_active_pinned_posts(current_user, limit=limit)
     
+    favorited_ids = []
+    if current_user:
+        favorited_ids = Favorite.get_favorited_post_ids(current_user.id)
+    
+    posts_data = []
+    for post in posts:
+        post_dict = post.to_dict(include_author=True)
+        post_dict['is_favorited'] = post.id in favorited_ids
+        posts_data.append(post_dict)
+    
     return jsonify({
         'success': True,
-        'posts': [post.to_dict(include_author=True) for post in posts],
+        'posts': posts_data,
         'config': Config.PIN_CONFIG
     })
 
@@ -511,6 +537,52 @@ def change_password():
         })
     else:
         return jsonify({'success': False, 'message': '原密码错误'}), 400
+
+@app.route('/api/posts/<int:post_id>/favorite', methods=['POST'])
+@login_required
+def toggle_favorite(post_id):
+    user = get_current_user()
+    post = Post.get_by_id(post_id)
+    
+    if not post:
+        return jsonify({'success': False, 'message': '该公告不存在'}), 404
+    
+    if not post.is_visible_to(user):
+        return jsonify({'success': False, 'message': '您没有权限收藏该公告'}), 403
+    
+    is_favorited = Favorite.toggle(user.id, post_id)
+    
+    return jsonify({
+        'success': True,
+        'is_favorited': is_favorited,
+        'message': '已收藏' if is_favorited else '已取消收藏'
+    })
+
+@app.route('/api/user/favorites', methods=['GET'])
+@login_required
+def get_user_favorites():
+    user = get_current_user()
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    offset = (page - 1) * per_page
+    
+    rows = Favorite.get_by_user(user.id, limit=per_page, offset=offset)
+    
+    posts_data = []
+    for row in rows:
+        post = Post(**row)
+        post_dict = post.to_dict(include_author=True)
+        post_dict['is_favorited'] = True
+        post_dict['favorited_at'] = row.get('created_at')
+        posts_data.append(post_dict)
+    
+    return jsonify({
+        'success': True,
+        'posts': posts_data,
+        'page': page,
+        'per_page': per_page,
+        'has_more': len(posts_data) >= per_page
+    })
 
 @app.route('/api/uploads/<filename>')
 def uploaded_file(filename):
