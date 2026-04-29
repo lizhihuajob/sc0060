@@ -72,6 +72,7 @@ export const postApi = {
   delete: (id) => apiClient.delete(`/posts/${id}`),
   pin: (id) => apiClient.post(`/posts/${id}/pin`),
   toggleFavorite: (id) => apiClient.post(`/posts/${id}/favorite`),
+  toggleLike: (id) => apiClient.post(`/posts/${id}/like`),
   getComments: (postId, params) => apiClient.get(`/posts/${postId}/comments`, { params }),
   createComment: (postId, data) => apiClient.post(`/posts/${postId}/comments`, data),
   deleteComment: (postId, commentId) => apiClient.delete(`/posts/${postId}/comments/${commentId}`)
@@ -85,7 +86,20 @@ export const userApi = {
   uploadAvatar: (data) => apiClient.post('/user/avatar', data, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
-  changePassword: (data) => apiClient.put('/user/password', data)
+  changePassword: (data) => apiClient.put('/user/password', data),
+  getById: (userId) => apiClient.get(`/users/${userId}`),
+  getFollowStatus: (userId) => apiClient.get(`/users/${userId}/follow-status`),
+  follow: (userId) => apiClient.post(`/users/${userId}/follow`),
+  unfollow: (userId) => apiClient.post(`/users/${userId}/unfollow`),
+  getFollowers: (params) => apiClient.get('/user/followers', { params }),
+  getFollowing: (params) => apiClient.get('/user/following', { params })
+}
+
+export const notificationApi = {
+  getList: (params) => apiClient.get('/notifications', { params }),
+  getUnreadCount: () => apiClient.get('/notifications/unread-count'),
+  markAsRead: (notificationId) => apiClient.post(`/notifications/${notificationId}/read`),
+  markAllAsRead: () => apiClient.post('/notifications/read-all')
 }
 
 export const configApi = {

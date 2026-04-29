@@ -13,6 +13,10 @@
       
       <div class="nav-actions">
         <template v-if="user">
+          <router-link to="/notifications" class="notification-badge">
+            <el-icon><Bell /></el-icon>
+            <span class="unread-count" v-if="unreadCount > 0">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+          </router-link>
           <el-dropdown @command="handleCommand">
             <div class="user-info">
             <span class="level-badge" :class="user.level">{{ user.level_name }}</span>
@@ -24,6 +28,11 @@
                 <el-dropdown-item command="profile">
                   <el-icon><User /></el-icon>
                   个人中心
+                </el-dropdown-item>
+                <el-dropdown-item command="notifications">
+                  <el-icon><Bell /></el-icon>
+                  通知消息
+                  <span class="unread-badge" v-if="unreadCount > 0">{{ unreadCount }}</span>
                 </el-dropdown-item>
                 <el-dropdown-item command="recharge">
                   <el-icon><Wallet /></el-icon>
@@ -51,8 +60,10 @@
 </template>
 
 <script setup>
+import { ref, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { CaretBottom, User, Wallet, TrendCharts, SwitchButton } from '@element-plus/icons-vue'
+import { CaretBottom, User, Wallet, TrendCharts, SwitchButton, Bell } from '@element-plus/icons-vue'
+import { notificationApi } from '../services/api'
 
 const props = defineProps({
   user: {
@@ -64,11 +75,44 @@ const props = defineProps({
 const emit = defineEmits(['logout'])
 
 const router = useRouter()
+const unreadCount = ref(0)
+
+const fetchUnreadCount = async () => {
+  if (!props.user) {
+    unreadCount.value = 0
+    return
+  }
+  try {
+    const response = await notificationApi.getUnreadCount()
+    if (response.data.success) {
+      unreadCount.value = response.data.count
+    }
+  } catch (error) {
+    console.error('获取未读通知数失败:', error)
+  }
+}
+
+watch(() => props.user, (newUser) => {
+  if (newUser) {
+    fetchUnreadCount()
+  } else {
+    unreadCount.value = 0
+  }
+}, { immediate: true })
+
+onMounted(() => {
+  if (props.user) {
+    fetchUnreadCount()
+  }
+})
 
 const handleCommand = (command) => {
   switch (command) {
     case 'profile':
       router.push('/profile')
+      break
+    case 'notifications':
+      router.push('/notifications')
       break
     case 'recharge':
       router.push('/recharge')
@@ -248,6 +292,53 @@ const handleCommand = (command) => {
 .level-badge.diamond {
   background: linear-gradient(135deg, #b9f2ff 0%, #87ceeb 100%);
   color: #1d1d1f;
+}
+
+.notification-badge {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+  font-size: 18px;
+}
+
+.notification-badge:hover {
+  color: var(--color-text);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.unread-count {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  background: var(--color-danger);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.unread-badge {
+  margin-left: auto;
+  background: var(--color-danger);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  line-height: 1;
 }
 
 :deep(.el-dropdown-menu__item) {
