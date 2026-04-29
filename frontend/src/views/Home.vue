@@ -37,12 +37,12 @@
     <section class="main-section">
       <div class="main-container">
         <div class="content-area">
-          <div v-if="pinnedPosts.length > 0" class="pinned-section">
+          <div v-if="!hasSearched" class="pinned-section">
             <div class="section-header">
               <div class="section-title-wrapper">
                 <span class="section-icon">📌</span>
                 <h2 class="section-title">精选置顶</h2>
-                <span class="pinned-badge">{{ pinnedPosts.length }}/{{ pinConfig.max_count }}</span>
+                <span v-if="pinnedPosts.length > 0" class="pinned-badge">{{ pinnedPosts.length }}/{{ pinConfig.max_count }}</span>
               </div>
               <div class="section-action">
                 <span class="pin-info">
@@ -51,7 +51,8 @@
                 </span>
               </div>
             </div>
-            <div class="pinned-grid">
+            
+            <div v-if="pinnedPosts.length > 0" class="pinned-grid">
               <div 
                 v-for="post in pinnedPosts" 
                 :key="post.id" 
@@ -90,6 +91,14 @@
                 </div>
                 <div class="pinned-glow"></div>
               </div>
+            </div>
+            
+            <div v-else class="pinned-empty">
+              <div class="empty-icon">
+                <el-icon><Star /></el-icon>
+              </div>
+              <h3 class="empty-title">暂无置顶内容</h3>
+              <p class="empty-desc">发布公告后可申请置顶推广，让你的信息获得更多曝光</p>
             </div>
           </div>
 
@@ -867,6 +876,34 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.pinned-empty {
+  text-align: center;
+  padding: 48px 24px;
+  background: linear-gradient(135deg, #ffffff 0%, #fafafa 100%);
+  border-radius: var(--radius-xl);
+  border: 1px dashed var(--color-border-light);
+}
+
+.pinned-empty .empty-icon {
+  font-size: 48px;
+  color: var(--color-text-tertiary);
+  margin-bottom: 16px;
+}
+
+.pinned-empty .empty-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  margin: 0 0 8px;
+  color: var(--color-text);
+}
+
+.pinned-empty .empty-desc {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin: 0;
+  line-height: 1.6;
 }
 
 .pinned-card {
