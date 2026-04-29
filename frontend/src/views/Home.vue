@@ -76,7 +76,7 @@
                       {{ formatTime(post.created_at) }}
                     </span>
                     <span class="stat-item like-btn" :class="{ liked: post.is_liked }" @click.stop="toggleLike(post)">
-                      <el-icon><Heart /></el-icon>
+                      <el-icon><StarFilled /></el-icon>
                       {{ post.likes_count || 0 }}
                     </span>
                     <span 
@@ -200,7 +200,7 @@
                       {{ post.views_count }}
                     </span>
                     <span class="stat-item like-btn" :class="{ liked: post.is_liked }" @click.stop="toggleLike(post)">
-                      <el-icon><Heart /></el-icon>
+                      <el-icon><StarFilled /></el-icon>
                       {{ post.likes_count || 0 }}
                     </span>
                     <span class="stat-item">
@@ -329,7 +329,7 @@ import { ElMessage } from 'element-plus'
 import { 
   Document, Clock, View, Loading, Search, Fire, 
   Star, Plus, ArrowDown, Close, Edit, Wallet,
-  Lock, CaretBottom, Sort, User, Heart
+  Lock, CaretBottom, Sort, User, StarFilled
 } from '@element-plus/icons-vue'
 import { postApi, authApi } from '../services/api'
 import { useUserStore } from '../stores/userStore'

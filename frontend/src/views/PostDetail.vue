@@ -41,7 +41,7 @@
         <div class="post-footer">
           <div class="post-actions">
             <span class="like-btn" :class="{ liked: post.is_liked }" @click="toggleLike">
-              <el-icon><Heart /></el-icon>
+              <el-icon><StarFilled /></el-icon>
               <span>{{ post.likes_count || 0 }} 点赞</span>
             </span>
             <span class="follow-btn" :class="{ following: isFollowing }" @click="toggleFollow" v-if="currentUser && currentUser.id !== post.author?.id">
@@ -154,7 +154,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, View, Loading, ChatDotRound, User, Delete, Heart, UserFilled } from '@element-plus/icons-vue'
+import { ArrowLeft, View, Loading, ChatDotRound, User, Delete, StarFilled, UserFilled } from '@element-plus/icons-vue'
 import { postApi, authApi, userApi } from '../services/api'
 
 const router = useRouter()
