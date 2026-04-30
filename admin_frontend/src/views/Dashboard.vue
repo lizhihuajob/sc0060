@@ -116,90 +116,15 @@
         </el-card>
       </el-col>
     </el-row>
-
-    <el-row :gutter="20" style="margin-top: 20px;">
-      <el-col :span="12">
-        <el-card class="section-card">
-          <template #header>
-            <div class="card-header">
-              <span>最近注册用户</span>
-              <el-button type="primary" text @click="goToUsers">
-                查看全部 <el-icon><ArrowRight /></el-icon>
-              </el-button>
-            </div>
-          </template>
-          <el-table :data="dashboard.recent_users || []" style="width: 100%" stripe>
-            <el-table-column prop="username" label="用户名" width="150" />
-            <el-table-column prop="level_name" label="等级" width="100">
-              <template #default="scope">
-                <el-tag size="small">{{ scope.row.level_name }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="posts_count" label="发布数" width="80" />
-            <el-table-column prop="balance" label="余额" width="100">
-              <template #default="scope">
-                ¥{{ scope.row.balance }}
-              </template>
-            </el-table-column>
-            <el-table-column prop="created_at" label="注册时间">
-              <template #default="scope">
-                {{ formatDate(scope.row.created_at) }}
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-card>
-      </el-col>
-      <el-col :span="12">
-        <el-card class="section-card">
-          <template #header>
-            <div class="card-header">
-              <span>最近发布公告</span>
-              <el-button type="primary" text @click="goToPosts">
-                查看全部 <el-icon><ArrowRight /></el-icon>
-              </el-button>
-            </div>
-          </template>
-          <el-table :data="dashboard.recent_posts || []" style="width: 100%" stripe>
-            <el-table-column prop="title" label="标题" min-width="150" show-overflow-tooltip />
-            <el-table-column prop="author" label="发布者" width="100">
-              <template #default="scope">
-                {{ scope.row.author?.username || '-' }}
-              </template>
-            </el-table-column>
-            <el-table-column prop="is_task" label="类型" width="80">
-              <template #default="scope">
-                <el-tag :type="scope.row.is_task ? 'success' : 'primary'" size="small">
-                  {{ scope.row.is_task ? '任务' : '公告' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="status" label="状态" width="80">
-              <template #default="scope">
-                <el-tag :type="scope.row.is_hidden ? 'danger' : 'success'" size="small">
-                  {{ scope.row.is_hidden ? '已下架' : '正常' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="created_at" label="发布时间" width="160">
-              <template #default="scope">
-                {{ formatDate(scope.row.created_at) }}
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-card>
-      </el-col>
-    </el-row>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { useAdminStore } from '../stores/adminStore'
 import { dashboardApi } from '../services/api'
 import { ElMessage } from 'element-plus'
 
-const router = useRouter()
 const adminStore = useAdminStore()
 
 const dashboard = ref({
@@ -208,9 +133,7 @@ const dashboard = ref({
   active_posts: 0,
   hidden_posts: 0,
   total_recharge: 0,
-  level_distribution: {},
-  recent_users: [],
-  recent_posts: []
+  level_distribution: {}
 })
 
 const loading = ref(false)
@@ -233,19 +156,6 @@ const fetchDashboard = async () => {
 const calculatePercentage = (count, total) => {
   if (!total) return 0
   return Math.round((count / total) * 100)
-}
-
-const formatDate = (dateStr) => {
-  if (!dateStr) return '-'
-  return new Date(dateStr).toLocaleString('zh-CN')
-}
-
-const goToUsers = () => {
-  router.push('/users')
-}
-
-const goToPosts = () => {
-  router.push('/posts')
 }
 
 onMounted(() => {
