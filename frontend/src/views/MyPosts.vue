@@ -124,6 +124,14 @@
                   <el-icon v-else class="loading"><Loading /></el-icon>
                   <span>置顶</span>
                 </button>
+                <button 
+                  class="action-btn edit-btn" 
+                  @click="editPost(post, $event)" 
+                  title="编辑"
+                >
+                  <el-icon><Edit /></el-icon>
+                  <span>编辑</span>
+                </button>
                 <button class="action-btn delete-btn" @click="deletePost(post, $event)" title="删除">
                   <el-icon><Delete /></el-icon>
                   <span>删除</span>
@@ -302,6 +310,11 @@ const deletePost = async (post, event) => {
       console.error('删除失败:', error)
     }
   }
+}
+
+const editPost = (post, event) => {
+  event.stopPropagation()
+  router.push(`/edit-post/${post.id}`)
 }
 
 const truncate = (text, length) => {
@@ -706,6 +719,14 @@ onMounted(() => {
 
 .pin-btn .loading {
   animation: spin 1s linear infinite;
+}
+
+.edit-btn {
+  color: var(--color-primary);
+}
+
+.edit-btn:hover {
+  background: rgba(0, 113, 227, 0.1);
 }
 
 .delete-btn {

@@ -31,12 +31,10 @@
           </el-form-item>
 
           <el-form-item label="内容" prop="content">
-            <el-input 
+            <MarkdownEditor 
               v-model="form.content" 
-              type="textarea" 
-              placeholder="请输入内容" 
-              :rows="8"
-              size="large"
+              placeholder="请输入内容，支持 Markdown 格式（点击帮助按钮查看语法）"
+              :rows="10"
             />
           </el-form-item>
 
@@ -112,6 +110,7 @@ import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { postApi } from '../services/api'
 import { useUserStore } from '../stores/userStore'
+import MarkdownEditor from '../components/MarkdownEditor.vue'
 
 const router = useRouter()
 const { user } = useUserStore()

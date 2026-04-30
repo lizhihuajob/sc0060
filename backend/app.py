@@ -244,6 +244,86 @@ def create_post():
         'post': post.to_dict(include_author=True)
     })
 
+@app.route('/api/posts/<int:post_id>', methods=['PUT'])
+@login_required
+def update_post(post_id):
+    from models import EditLog
+    
+    user = get_current_user()
+    post = Post.get_by_id(post_id)
+    
+    if not post:
+        return jsonify({'success': False, 'message': '该公告不存在'}), 404
+    
+    if post.is_hidden():
+        return jsonify({'success': False, 'message': '该公告已被下架，无法编辑'}), 400
+    
+    if not post.is_owned_by(user):
+        return jsonify({'success': False, 'message': '您没有权限编辑该公告'}), 403
+    
+    title = request.form.get('title', '').strip()
+    content = request.form.get('content', '').strip()
+    view_permission = request.form.get('view_permission')
+    is_task = request.form.get('is_task')
+    edit_reason = request.form.get('edit_reason', '').strip()
+    
+    updates = {}
+    if title:
+        updates['title'] = title
+    if content:
+        updates['content'] = content
+    if view_permission is not None:
+        updates['view_permission'] = view_permission
+    if is_task is not None:
+        try:
+            updates['is_task'] = int(is_task)
+        except ValueError:
+            pass
+    
+    if not updates:
+        return jsonify({'success': False, 'message': '没有需要更新的内容'}), 400
+    
+    old_data = post.get_old_data()
+    
+    new_images = None
+    if 'images' in request.files:
+        files = request.files.getlist('images')
+        if files and files[0].filename:
+            new_images = []
+            for file in files:
+                if file and file.filename and allowed_file(file.filename):
+                    filename = secure_filename(file.filename)
+                    unique_filename = f"{uuid.uuid4()}_{filename}"
+                    filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+                    file.save(filepath)
+                    new_images.append(unique_filename)
+    
+    if new_images is not None:
+        updates['images'] = new_images
+    
+    new_data = {
+        'title': updates.get('title', old_data['title']),
+        'content': updates.get('content', old_data['content']),
+        'view_permission': updates.get('view_permission', old_data['view_permission']),
+        'is_task': updates.get('is_task', old_data['is_task'])
+    }
+    
+    post.update(**updates)
+    
+    EditLog.create(
+        post_id=post.id,
+        user_id=user.id,
+        old_data=old_data,
+        new_data=new_data,
+        edit_reason=edit_reason if edit_reason else None
+    )
+    
+    return jsonify({
+        'success': True,
+        'message': '更新成功！',
+        'post': post.to_dict(include_author=True)
+    })
+
 @app.route('/api/posts/<int:post_id>', methods=['DELETE'])
 @login_required
 def delete_post(post_id):
@@ -417,13 +497,41 @@ def delete_comment(post_id, comment_id):
 @app.route('/api/user/profile', methods=['GET'])
 @login_required
 def get_profile():
+    from models import EditLog
+    
     user = get_current_user()
     transactions = Transaction.get_by_user(user.id, limit=10)
+    edit_logs = EditLog.get_by_user(user.id, limit=10)
+    edit_logs_count = EditLog.count_by_user(user.id)
     
     return jsonify({
         'success': True,
         'user': user.to_dict(),
-        'transactions': [t.to_dict() for t in transactions]
+        'transactions': [t.to_dict() for t in transactions],
+        'edit_logs': [log.to_dict(include_post=True) for log in edit_logs],
+        'edit_logs_count': edit_logs_count
+    })
+
+@app.route('/api/user/edit-logs', methods=['GET'])
+@login_required
+def get_user_edit_logs():
+    from models import EditLog
+    
+    user = get_current_user()
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    offset = (page - 1) * per_page
+    
+    edit_logs = EditLog.get_by_user(user.id, limit=per_page, offset=offset)
+    total = EditLog.count_by_user(user.id)
+    
+    return jsonify({
+        'success': True,
+        'edit_logs': [log.to_dict(include_post=True) for log in edit_logs],
+        'page': page,
+        'per_page': per_page,
+        'total': total,
+        'total_pages': (total + per_page - 1) // per_page
     })
 
 @app.route('/api/user/upgrade', methods=['POST'])

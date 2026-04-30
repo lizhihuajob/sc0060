@@ -20,6 +20,13 @@
         >
           我的收藏
         </button>
+        <button 
+          class="tab-btn" 
+          :class="{ active: activeTab === 'edit-logs' }"
+          @click="activeTab = 'edit-logs'"
+        >
+          编辑日志
+        </button>
       </div>
 
       <div class="profile-grid" v-if="user" v-show="activeTab === 'profile'">
@@ -248,6 +255,105 @@
           </button>
         </div>
       </div>
+
+      <div class="edit-logs-section" v-show="activeTab === 'edit-logs'">
+        <div class="section-header">
+          <h3 class="section-title">
+            <el-icon><Document /></el-icon>
+            编辑日志
+          </h3>
+        </div>
+
+        <div class="edit-logs-list" v-if="editLogs.length > 0">
+          <div 
+            v-for="log in editLogs" 
+            :key="log.id"
+            class="edit-log-item card"
+          >
+            <div class="log-header">
+              <div class="log-post-title">
+                <router-link :to="`/post/${log.post_id}`" class="post-link">
+                  {{ log.post?.title || '该帖子已删除' }}
+                </router-link>
+              </div>
+              <span class="log-time">{{ formatTime(log.created_at) }}</span>
+            </div>
+            
+            <div class="log-changes">
+              <span class="changes-badge">{{ log.changes_summary }}</span>
+            </div>
+            
+            <div class="log-reason" v-if="log.edit_reason">
+              <span class="reason-label">修改原因：</span>
+              <span class="reason-text">{{ log.edit_reason }}</span>
+            </div>
+
+            <el-divider v-if="!log.has_title_changed && !log.has_content_changed" />
+            <div class="log-details" v-else>
+              <div class="detail-section" v-if="log.has_title_changed">
+                <div class="detail-label">标题修改</div>
+                <div class="detail-before">
+                  <span class="change-label">修改前：</span>
+                  <span class="before-text">{{ log.title_before || '-' }}</span>
+                </div>
+                <div class="detail-after">
+                  <span class="change-label">修改后：</span>
+                  <span class="after-text">{{ log.title_after || '-' }}</span>
+                </div>
+              </div>
+
+              <div class="detail-section" v-if="log.has_content_changed">
+                <div class="detail-label">内容修改</div>
+                <div class="content-compare">
+                  <div class="compare-col">
+                    <div class="compare-header">修改前</div>
+                    <div class="compare-content before">
+                      {{ truncate(log.content_before, 200) }}
+                    </div>
+                  </div>
+                  <div class="compare-col">
+                    <div class="compare-header">修改后</div>
+                    <div class="compare-content after">
+                      {{ truncate(log.content_after, 200) }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="empty-state" v-else-if="!loadingEditLogs">
+          <div class="empty-icon">
+            <svg width="80" height="80" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z" stroke="#86868b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M14 2V8H20" stroke="#86868b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M16 13H8" stroke="#86868b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M16 17H8" stroke="#86868b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M10 9H9H8" stroke="#86868b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <h3 class="empty-title">暂无编辑记录</h3>
+          <p class="empty-desc">
+            您还没有编辑过任何帖子，编辑后的修改记录将在这里显示
+          </p>
+        </div>
+
+        <div class="loading-state" v-else>
+          <div class="loading-spinner">
+            <div class="spinner-circle"></div>
+          </div>
+          <p>加载中...</p>
+        </div>
+
+        <div class="load-more" v-if="hasMoreEditLogs && !loadingEditLogs">
+          <button class="load-more-btn" @click="loadMoreEditLogs" :disabled="loadingEditLogs">
+            <span v-if="!loadingEditLogs">加载更多</span>
+            <span v-else>加载中...</span>
+            <el-icon class="arrow-icon"><ArrowDown /></el-icon>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -256,7 +362,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { User, Wallet, TrendCharts, Plus, Minus, Camera, Star, View, ArrowDown, ArrowRight } from '@element-plus/icons-vue'
+import { User, Wallet, TrendCharts, Plus, Minus, Camera, Star, View, ArrowDown, ArrowRight, Document } from '@element-plus/icons-vue'
 import { userApi, postApi } from '../services/api'
 
 const router = useRouter()
@@ -272,6 +378,11 @@ const favorites = ref([])
 const loadingFavorites = ref(false)
 const favoritesPage = ref(1)
 const hasMoreFavorites = ref(true)
+
+const editLogs = ref([])
+const loadingEditLogs = ref(false)
+const editLogsPage = ref(1)
+const hasMoreEditLogs = ref(true)
 
 const passwordForm = reactive({
   oldPassword: '',
@@ -320,6 +431,37 @@ const loadFavorites = async (append = false) => {
 const loadMoreFavorites = () => {
   favoritesPage.value++
   loadFavorites(true)
+}
+
+const loadEditLogs = async (append = false) => {
+  if (loadingEditLogs.value) return
+  loadingEditLogs.value = true
+  
+  try {
+    const response = await userApi.getEditLogs({
+      page: editLogsPage.value,
+      per_page: 20
+    })
+    
+    if (response.data.success) {
+      const newLogs = response.data.edit_logs
+      if (append) {
+        editLogs.value = [...editLogs.value, ...newLogs]
+      } else {
+        editLogs.value = newLogs
+      }
+      hasMoreEditLogs.value = (editLogsPage.value * 20) < response.data.total
+    }
+  } catch (error) {
+    console.error('加载编辑日志失败:', error)
+  } finally {
+    loadingEditLogs.value = false
+  }
+}
+
+const loadMoreEditLogs = () => {
+  editLogsPage.value++
+  loadEditLogs(true)
 }
 
 const unfavorite = async (post) => {
@@ -440,6 +582,7 @@ const formatTime = (time) => {
 onMounted(() => {
   loadProfile()
   loadFavorites()
+  loadEditLogs()
 })
 </script>
 
@@ -1080,6 +1223,206 @@ onMounted(() => {
   transform: translateY(2px);
 }
 
+.edit-logs-section {
+  width: 100%;
+}
+
+.edit-logs-section .section-header {
+  margin-bottom: 24px;
+}
+
+.edit-logs-section .section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-xl);
+}
+
+.edit-logs-section .section-title .el-icon {
+  color: var(--color-primary);
+}
+
+.edit-logs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.edit-log-item {
+  padding: 20px 24px;
+  transition: all var(--transition-normal);
+}
+
+.edit-log-item:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.log-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.log-post-title {
+  flex: 1;
+}
+
+.post-link {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.post-link:hover {
+  color: var(--color-primary);
+}
+
+.log-time {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.log-changes {
+  margin-bottom: 12px;
+}
+
+.changes-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  background: rgba(0, 113, 227, 0.1);
+  color: var(--color-primary);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.log-reason {
+  margin-bottom: 12px;
+  padding: 12px;
+  background: var(--color-background);
+  border-radius: var(--radius-md);
+}
+
+.reason-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.reason-text {
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  margin-left: 4px;
+}
+
+.log-details {
+  margin-top: 12px;
+}
+
+.detail-section {
+  margin-bottom: 16px;
+}
+
+.detail-section:last-child {
+  margin-bottom: 0;
+}
+
+.detail-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  margin-bottom: 8px;
+}
+
+.detail-before,
+.detail-after {
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  margin-bottom: 4px;
+  font-size: var(--font-size-sm);
+}
+
+.detail-before {
+  background: rgba(255, 59, 48, 0.05);
+  border-left: 3px solid var(--color-danger);
+}
+
+.detail-after {
+  background: rgba(52, 199, 89, 0.05);
+  border-left: 3px solid var(--color-success);
+}
+
+.change-label {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  margin-right: 4px;
+}
+
+.before-text {
+  color: var(--color-danger);
+}
+
+.after-text {
+  color: var(--color-success);
+}
+
+.content-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.compare-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.compare-header {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  margin-bottom: 0;
+}
+
+.compare-col:nth-child(1) .compare-header {
+  background: rgba(255, 59, 48, 0.1);
+  color: var(--color-danger);
+}
+
+.compare-col:nth-child(2) .compare-header {
+  background: rgba(52, 199, 89, 0.1);
+  color: var(--color-success);
+}
+
+.compare-content {
+  padding: 12px;
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.compare-content.before {
+  background: rgba(255, 59, 48, 0.03);
+  border: 1px solid rgba(255, 59, 48, 0.1);
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.compare-content.after {
+  background: rgba(52, 199, 89, 0.03);
+  border: 1px solid rgba(52, 199, 89, 0.1);
+}
+
 @media (max-width: 768px) {
   .profile-grid {
     grid-template-columns: 1fr;
@@ -1115,6 +1458,23 @@ onMounted(() => {
   
   .load-more-btn {
     width: 100%;
+  }
+
+  .log-header {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .log-time {
+    align-self: flex-start;
+  }
+  
+  .content-compare {
+    grid-template-columns: 1fr;
+  }
+  
+  .edit-log-item {
+    padding: 16px;
   }
 }
 </style>

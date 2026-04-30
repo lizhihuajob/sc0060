@@ -23,7 +23,7 @@
         <h1 class="post-title">{{ post.title }}</h1>
 
         <div class="post-content">
-          <p>{{ post.content }}</p>
+          <MarkdownRenderer :content="post.content" />
         </div>
 
         <div class="post-images" v-if="post.images?.length > 0">
@@ -146,6 +146,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, View, Loading, ChatDotRound, User, Delete } from '@element-plus/icons-vue'
 import { postApi, authApi } from '../services/api'
+import MarkdownRenderer from '../components/MarkdownRenderer.vue'
 
 const router = useRouter()
 const route = useRoute()
