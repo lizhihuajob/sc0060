@@ -174,6 +174,59 @@ def init_database():
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_views_count ON posts(views_count)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_is_pinned ON posts(is_pinned)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_pinned_at ON posts(pinned_at)')
+        
+        cursor.execute('''
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = 'tags'
+            )
+        ''')
+        tags_table_exists = cursor.fetchone()[0]
+        
+        if not tags_table_exists:
+            cursor.execute('''
+                CREATE TABLE tags (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR(100) NOT NULL,
+                    slug VARCHAR(100) UNIQUE NOT NULL,
+                    description TEXT,
+                    color VARCHAR(20) DEFAULT '#0071e3',
+                    icon VARCHAR(50),
+                    sort_order INTEGER DEFAULT 0,
+                    is_active INTEGER DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            cursor.execute('CREATE INDEX idx_tags_slug ON tags(slug)')
+            cursor.execute('CREATE INDEX idx_tags_is_active ON tags(is_active)')
+            cursor.execute('CREATE INDEX idx_tags_sort_order ON tags(sort_order)')
+            print('Created table: tags')
+        
+        cursor.execute('''
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = 'post_tags'
+            )
+        ''')
+        post_tags_table_exists = cursor.fetchone()[0]
+        
+        if not post_tags_table_exists:
+            cursor.execute('''
+                CREATE TABLE post_tags (
+                    id SERIAL PRIMARY KEY,
+                    post_id INTEGER NOT NULL,
+                    tag_id INTEGER NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE CASCADE,
+                    FOREIGN KEY (tag_id) REFERENCES tags (id) ON DELETE CASCADE,
+                    UNIQUE(post_id, tag_id)
+                )
+            ''')
+            cursor.execute('CREATE INDEX idx_post_tags_post_id ON post_tags(post_id)')
+            cursor.execute('CREATE INDEX idx_post_tags_tag_id ON post_tags(tag_id)')
+            print('Created table: post_tags')
+        
         conn.commit()
         conn.close()
         return
@@ -285,6 +338,35 @@ def init_database():
         )
     ''')
     
+    cursor.execute('CREATE INDEX idx_edit_logs_created_at ON edit_logs(created_at)')
+    
+    cursor.execute('''
+        CREATE TABLE tags (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(100) NOT NULL,
+            slug VARCHAR(100) UNIQUE NOT NULL,
+            description TEXT,
+            color VARCHAR(20) DEFAULT '#0071e3',
+            icon VARCHAR(50),
+            sort_order INTEGER DEFAULT 0,
+            is_active INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    cursor.execute('''
+        CREATE TABLE post_tags (
+            id SERIAL PRIMARY KEY,
+            post_id INTEGER NOT NULL,
+            tag_id INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE CASCADE,
+            FOREIGN KEY (tag_id) REFERENCES tags (id) ON DELETE CASCADE,
+            UNIQUE(post_id, tag_id)
+        )
+    ''')
+    
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_user_id ON posts(user_id)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_views_count ON posts(views_count)')
@@ -298,6 +380,11 @@ def init_database():
     cursor.execute('CREATE INDEX idx_edit_logs_post_id ON edit_logs(post_id)')
     cursor.execute('CREATE INDEX idx_edit_logs_user_id ON edit_logs(user_id)')
     cursor.execute('CREATE INDEX idx_edit_logs_created_at ON edit_logs(created_at)')
+    cursor.execute('CREATE INDEX idx_tags_slug ON tags(slug)')
+    cursor.execute('CREATE INDEX idx_tags_is_active ON tags(is_active)')
+    cursor.execute('CREATE INDEX idx_tags_sort_order ON tags(sort_order)')
+    cursor.execute('CREATE INDEX idx_post_tags_post_id ON post_tags(post_id)')
+    cursor.execute('CREATE INDEX idx_post_tags_tag_id ON post_tags(tag_id)')
     
     conn.commit()
     conn.close()

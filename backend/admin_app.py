@@ -7,7 +7,7 @@ from config import Config
 from init_db import init_database
 init_database()
 
-from models import Admin, User, Post, Transaction
+from models import Admin, User, Post, Transaction, Tag, PostTag
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 ADMIN_STATIC_FOLDER = os.path.join(BASE_DIR, 'admin_static')
@@ -340,6 +340,174 @@ def get_posts_stats():
             'active_posts': active_posts,
             'hidden_posts': hidden_posts
         }
+    })
+
+@admin_app.route('/api/admin/tags', methods=['GET'])
+@admin_login_required
+def get_tags_list():
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    offset = (page - 1) * per_page
+    
+    keyword = request.args.get('keyword', '').strip()
+    is_active = request.args.get('is_active', '')
+    
+    is_active_filter = None
+    if is_active == '1':
+        is_active_filter = True
+    elif is_active == '0':
+        is_active_filter = False
+    
+    keyword_filter = keyword if keyword else None
+    
+    tags = Tag.get_for_admin(
+        limit=per_page,
+        offset=offset,
+        keyword=keyword_filter,
+        is_active=is_active_filter
+    )
+    
+    total = Tag.count_for_admin(
+        keyword=keyword_filter,
+        is_active=is_active_filter
+    )
+    
+    tags_data = []
+    for tag in tags:
+        tag_dict = tag.to_dict(include_posts_count=True)
+        tags_data.append(tag_dict)
+    
+    return jsonify({
+        'success': True,
+        'tags': tags_data,
+        'page': page,
+        'per_page': per_page,
+        'total': total,
+        'total_pages': (total + per_page - 1) // per_page
+    })
+
+@admin_app.route('/api/admin/tags/all', methods=['GET'])
+@admin_login_required
+def get_all_tags():
+    tags = Tag.get_all(include_inactive=True)
+    return jsonify({
+        'success': True,
+        'tags': [tag.to_dict() for tag in tags]
+    })
+
+@admin_app.route('/api/admin/tags/<int:tag_id>', methods=['GET'])
+@admin_login_required
+def get_tag_detail(tag_id):
+    tag = Tag.get_by_id(tag_id)
+    
+    if not tag:
+        return jsonify({'success': False, 'message': '标签不存在'}), 404
+    
+    tag_dict = tag.to_dict(include_posts_count=True)
+    
+    return jsonify({
+        'success': True,
+        'tag': tag_dict
+    })
+
+@admin_app.route('/api/admin/tags', methods=['POST'])
+@admin_login_required
+def create_tag():
+    admin = get_current_admin()
+    data = request.get_json()
+    
+    name = data.get('name', '').strip()
+    slug = data.get('slug', '').strip()
+    description = data.get('description', '').strip()
+    color = data.get('color', '#0071e3')
+    icon = data.get('icon', '').strip()
+    sort_order = data.get('sort_order', 0)
+    
+    if not name:
+        return jsonify({'success': False, 'message': '标签名称不能为空'}), 400
+    
+    if not slug:
+        slug = name.lower().replace(' ', '-').replace('_', '-')
+    
+    existing_tag = Tag.get_by_slug(slug)
+    if existing_tag:
+        return jsonify({'success': False, 'message': '标签标识已存在，请使用其他标识'}), 400
+    
+    tag = Tag.create(
+        name=name,
+        slug=slug,
+        description=description if description else None,
+        color=color,
+        icon=icon if icon else None,
+        sort_order=sort_order
+    )
+    
+    return jsonify({
+        'success': True,
+        'message': '标签创建成功',
+        'tag': tag.to_dict()
+    })
+
+@admin_app.route('/api/admin/tags/<int:tag_id>', methods=['PUT'])
+@admin_login_required
+def update_tag(tag_id):
+    admin = get_current_admin()
+    tag = Tag.get_by_id(tag_id)
+    
+    if not tag:
+        return jsonify({'success': False, 'message': '标签不存在'}), 404
+    
+    data = request.get_json()
+    
+    name = data.get('name')
+    slug = data.get('slug')
+    description = data.get('description')
+    color = data.get('color')
+    icon = data.get('icon')
+    sort_order = data.get('sort_order')
+    is_active = data.get('is_active')
+    
+    if slug is not None and slug != tag.slug:
+        existing_tag = Tag.get_by_slug(slug)
+        if existing_tag and existing_tag.id != tag_id:
+            return jsonify({'success': False, 'message': '标签标识已存在'}), 400
+    
+    tag.update(
+        name=name,
+        slug=slug,
+        description=description,
+        color=color,
+        icon=icon,
+        sort_order=sort_order,
+        is_active=is_active
+    )
+    
+    return jsonify({
+        'success': True,
+        'message': '标签更新成功',
+        'tag': tag.to_dict()
+    })
+
+@admin_app.route('/api/admin/tags/<int:tag_id>', methods=['DELETE'])
+@admin_login_required
+def delete_tag(tag_id):
+    tag = Tag.get_by_id(tag_id)
+    
+    if not tag:
+        return jsonify({'success': False, 'message': '标签不存在'}), 404
+    
+    posts_count = tag.get_posts_count()
+    if posts_count > 0:
+        return jsonify({
+            'success': False, 
+            'message': f'该标签下还有 {posts_count} 篇帖子，请先移除这些帖子的标签后再删除'
+        }), 400
+    
+    tag.delete()
+    
+    return jsonify({
+        'success': True,
+        'message': '标签删除成功'
     })
 
 @admin_app.route('/api/admin/dashboard', methods=['GET'])
