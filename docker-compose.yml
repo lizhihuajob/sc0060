@@ -50,12 +50,11 @@ services:
       DEFAULT_ADMIN_USERNAME: admin
       DEFAULT_ADMIN_PASSWORD: admin123
       ADMIN_SECRET_KEY: admin-secret-key-change-in-production
-      CORS_ORIGINS: '["http://localhost:3002", "http://localhost:3008", "http://localhost:3009", "http://localhost:5002", "http://localhost:5173"]'
     volumes:
       - ./backend:/app
       - uploads_data:/tmp/uploads
-    ports:
-      - "3009:3009"
+    expose:
+      - "3009"
     depends_on:
       db:
         condition: service_healthy
@@ -68,6 +67,14 @@ services:
       - "3008:80"
     depends_on:
       - backend
+
+  admin_frontend:
+    build: ./admin_frontend
+    container_name: app_admin_frontend
+    ports:
+      - "3009:80"
+    depends_on:
+      - admin_backend
 
 volumes:
   postgres_data:
