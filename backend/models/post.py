@@ -4,6 +4,9 @@ from config import Config
 from models.user import User
 
 class Post:
+    STATUS_ACTIVE = 'active'
+    STATUS_HIDDEN = 'hidden'
+    
     def __init__(self, **kwargs):
         self.id = kwargs.get('id')
         self.user_id = kwargs.get('user_id')
@@ -16,8 +19,13 @@ class Post:
         self.is_pinned = kwargs.get('is_pinned', 0)
         self.pinned_at = kwargs.get('pinned_at')
         self.pin_expires_at = kwargs.get('pin_expires_at')
+        self.status = kwargs.get('status', self.STATUS_ACTIVE)
+        self.hidden_by = kwargs.get('hidden_by')
+        self.hidden_at = kwargs.get('hidden_at')
+        self.hidden_reason = kwargs.get('hidden_reason')
         self.created_at = kwargs.get('created_at')
         self._author = None
+        self._hidden_by_admin = None
     
     @staticmethod
     def create(user_id, title, content, view_permission='all', images=None, is_task=0):
@@ -69,8 +77,10 @@ class Post:
             params.append('gold_above')
         
         conditions.append('(is_pinned = 0 OR is_pinned IS NULL)')
+        conditions.append('status = %s')
+        params.append(Post.STATUS_ACTIVE)
         
-        where_clause = ' OR '.join(conditions[:-1]) + ' AND ' + conditions[-1]
+        where_clause = ' OR '.join(conditions[:-2]) + ' AND ' + ' AND '.join(conditions[-2:])
         query = f'''SELECT * FROM posts WHERE {where_clause} 
                     ORDER BY created_at DESC LIMIT %s OFFSET %s'''
         params.extend([limit, offset])
@@ -82,9 +92,9 @@ class Post:
     def _get_public_posts(limit=20, offset=0):
         rows = fetchall(
             '''SELECT * FROM posts 
-               WHERE view_permission = %s AND (is_pinned = 0 OR is_pinned IS NULL)
+               WHERE view_permission = %s AND (is_pinned = 0 OR is_pinned IS NULL) AND status = %s
                ORDER BY created_at DESC LIMIT %s OFFSET %s''',
-            ('all', limit, offset)
+            ('all', Post.STATUS_ACTIVE, limit, offset)
         )
         return [Post(**row) for row in rows]
     
@@ -151,13 +161,46 @@ class Post:
         self.pin_expires_at = None
         return True
     
+    def hide(self, admin_id, reason=None):
+        from datetime import datetime
+        now = datetime.now()
+        execute(
+            '''UPDATE posts SET status = %s, hidden_by = %s, hidden_at = %s, hidden_reason = %s WHERE id = %s''',
+            (self.STATUS_HIDDEN, admin_id, now, reason, self.id)
+        )
+        self.status = self.STATUS_HIDDEN
+        self.hidden_by = admin_id
+        self.hidden_at = now
+        self.hidden_reason = reason
+        return True
+    
+    def unhide(self):
+        execute(
+            '''UPDATE posts SET status = %s, hidden_by = %s, hidden_at = %s, hidden_reason = %s WHERE id = %s''',
+            (self.STATUS_ACTIVE, None, None, None, self.id)
+        )
+        self.status = self.STATUS_ACTIVE
+        self.hidden_by = None
+        self.hidden_at = None
+        self.hidden_reason = None
+        return True
+    
+    def is_hidden(self):
+        return self.status == self.STATUS_HIDDEN
+    
+    def get_hidden_by_admin(self):
+        if self._hidden_by_admin is None and self.hidden_by:
+            from models.admin import Admin
+            self._hidden_by_admin = Admin.get_by_id(self.hidden_by)
+        return self._hidden_by_admin
+    
     @staticmethod
     def get_active_pinned_posts(current_user=None, limit=3):
         from datetime import datetime
         now = datetime.now()
         
-        base_conditions = ['is_pinned = 1', '(pin_expires_at IS NULL OR pin_expires_at > %s)']
-        params = [now]
+        base_conditions = ['is_pinned = 1', '(pin_expires_at IS NULL OR pin_expires_at > %s)', 'status = %s']
+        params = [now, Post.STATUS_ACTIVE]
         
         if current_user is None:
             base_conditions.append('view_permission = %s')
@@ -207,8 +250,8 @@ class Post:
     
     @staticmethod
     def search_posts(current_user=None, keyword=None, post_type=None, sort_by='latest', limit=20, offset=0):
-        base_conditions = ['(is_pinned = 0 OR is_pinned IS NULL)']
-        params = []
+        base_conditions = ['(is_pinned = 0 OR is_pinned IS NULL)', 'status = %s']
+        params = [Post.STATUS_ACTIVE]
         
         if current_user is None:
             base_conditions.append('view_permission = %s')
@@ -279,7 +322,51 @@ class Post:
     def get_view_permission_name(self):
         return Config.VIEW_PERMISSIONS.get(self.view_permission, '所有用户')
     
-    def to_dict(self, include_author=False):
+    @staticmethod
+    def get_all_for_admin(limit=20, offset=0, status=None, keyword=None):
+        base_conditions = ['1=1']
+        params = []
+        
+        if status:
+            base_conditions.append('status = %s')
+            params.append(status)
+        
+        if keyword:
+            base_conditions.append('(title ILIKE %s OR content ILIKE %s)')
+            keyword_param = f'%{keyword}%'
+            params.extend([keyword_param, keyword_param])
+        
+        where_clause = ' AND '.join(base_conditions)
+        
+        query = f'''SELECT * FROM posts WHERE {where_clause} 
+                    ORDER BY created_at DESC LIMIT %s OFFSET %s'''
+        params.extend([limit, offset])
+        
+        rows = fetchall(query, params)
+        return [Post(**row) for row in rows]
+    
+    @staticmethod
+    def count_for_admin(status=None, keyword=None):
+        base_conditions = ['1=1']
+        params = []
+        
+        if status:
+            base_conditions.append('status = %s')
+            params.append(status)
+        
+        if keyword:
+            base_conditions.append('(title ILIKE %s OR content ILIKE %s)')
+            keyword_param = f'%{keyword}%'
+            params.extend([keyword_param, keyword_param])
+        
+        where_clause = ' AND '.join(base_conditions)
+        
+        query = f'''SELECT COUNT(*) as count FROM posts WHERE {where_clause}'''
+        
+        row = fetchone(query, params)
+        return row['count'] if row else 0
+    
+    def to_dict(self, include_author=False, include_admin_info=False):
         data = {
             'id': self.id,
             'user_id': self.user_id,
@@ -293,8 +380,22 @@ class Post:
             'is_pinned': self.is_pinned,
             'pinned_at': self.pinned_at,
             'pin_expires_at': self.pin_expires_at,
+            'status': self.status,
+            'is_hidden': self.is_hidden(),
             'created_at': self.created_at
         }
+        
+        if include_admin_info:
+            data['hidden_by'] = self.hidden_by
+            data['hidden_at'] = self.hidden_at
+            data['hidden_reason'] = self.hidden_reason
+            
+            hidden_admin = self.get_hidden_by_admin()
+            if hidden_admin:
+                data['hidden_by_admin'] = {
+                    'id': hidden_admin.id,
+                    'username': hidden_admin.username
+                }
         
         if include_author:
             author = self.get_author()
