@@ -155,6 +155,9 @@ def get_post_detail(post_id):
     if not post:
         return jsonify({'success': False, 'message': '该公告不存在'}), 404
     
+    if post.is_hidden():
+        return jsonify({'success': False, 'message': '该公告不存在'}), 404
+    
     current_user = get_current_user()
     if not post.is_visible_to(current_user):
         return jsonify({'success': False, 'message': '您没有权限查看该公告'}), 403
@@ -292,6 +295,9 @@ def pin_post(post_id):
     if not post:
         return jsonify({'success': False, 'message': '该公告不存在'}), 404
     
+    if post.is_hidden():
+        return jsonify({'success': False, 'message': '该公告不存在'}), 404
+    
     if not post.is_owned_by(user):
         return jsonify({'success': False, 'message': '您没有权限操作该公告'}), 403
     
@@ -336,6 +342,9 @@ def get_post_comments(post_id):
     if not post:
         return jsonify({'success': False, 'message': '该公告不存在'}), 404
     
+    if post.is_hidden():
+        return jsonify({'success': False, 'message': '该公告不存在'}), 404
+    
     current_user = get_current_user()
     if not post.is_visible_to(current_user):
         return jsonify({'success': False, 'message': '您没有权限查看该公告'}), 403
@@ -361,6 +370,9 @@ def create_comment(post_id):
     post = Post.get_by_id(post_id)
     
     if not post:
+        return jsonify({'success': False, 'message': '该公告不存在'}), 404
+    
+    if post.is_hidden():
         return jsonify({'success': False, 'message': '该公告不存在'}), 404
     
     if not post.is_visible_to(user):
@@ -545,6 +557,9 @@ def toggle_favorite(post_id):
     post = Post.get_by_id(post_id)
     
     if not post:
+        return jsonify({'success': False, 'message': '该公告不存在'}), 404
+    
+    if post.is_hidden():
         return jsonify({'success': False, 'message': '该公告不存在'}), 404
     
     if not post.is_visible_to(user):

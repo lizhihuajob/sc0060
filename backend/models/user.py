@@ -33,6 +33,79 @@ class User:
         row = fetchone('SELECT * FROM users WHERE username = %s', (username,))
         return User(**row) if row else None
     
+    @staticmethod
+    def get_all_for_admin(limit=20, offset=0, level=None, keyword=None):
+        base_conditions = ['1=1']
+        params = []
+        
+        if level:
+            base_conditions.append('level = %s')
+            params.append(level)
+        
+        if keyword:
+            base_conditions.append('(username ILIKE %s OR email ILIKE %s)')
+            keyword_param = f'%{keyword}%'
+            params.extend([keyword_param, keyword_param])
+        
+        where_clause = ' AND '.join(base_conditions)
+        
+        query = f'''SELECT * FROM users WHERE {where_clause} 
+                    ORDER BY created_at DESC LIMIT %s OFFSET %s'''
+        params.extend([limit, offset])
+        
+        rows = fetchall(query, params)
+        return [User(**row) for row in rows]
+    
+    @staticmethod
+    def count_for_admin(level=None, keyword=None):
+        base_conditions = ['1=1']
+        params = []
+        
+        if level:
+            base_conditions.append('level = %s')
+            params.append(level)
+        
+        if keyword:
+            base_conditions.append('(username ILIKE %s OR email ILIKE %s)')
+            keyword_param = f'%{keyword}%'
+            params.extend([keyword_param, keyword_param])
+        
+        where_clause = ' AND '.join(base_conditions)
+        
+        query = f'''SELECT COUNT(*) as count FROM users WHERE {where_clause}'''
+        
+        row = fetchone(query, params)
+        return row['count'] if row else 0
+    
+    @staticmethod
+    def get_total_recharge():
+        from models.transaction import Transaction
+        row = fetchone(
+            '''SELECT SUM(amount) as total FROM transactions 
+               WHERE transaction_type = %s AND amount > 0''',
+            (Transaction.TYPE_RECHARGE,)
+        )
+        return row['total'] if row and row['total'] else 0
+    
+    def get_transactions_summary(self):
+        from models.transaction import Transaction
+        transactions = Transaction.get_by_user(self.id, limit=100)
+        
+        total_recharge = 0
+        total_spent = 0
+        
+        for t in transactions:
+            if t.transaction_type == Transaction.TYPE_RECHARGE and t.amount > 0:
+                total_recharge += t.amount
+            elif t.amount < 0:
+                total_spent += abs(t.amount)
+        
+        return {
+            'total_recharge': total_recharge,
+            'total_spent': total_spent,
+            'transaction_count': len(transactions)
+        }
+    
     def check_password(self, password):
         return check_password_hash(self.password, password)
     
@@ -121,8 +194,8 @@ class User:
         self.avatar = avatar_filename
         return True
     
-    def to_dict(self):
-        return {
+    def to_dict(self, include_transactions_summary=False):
+        data = {
             'id': self.id,
             'username': self.username,
             'email': self.email,
@@ -134,3 +207,9 @@ class User:
             'balance': self.balance,
             'created_at': self.created_at
         }
+        
+        if include_transactions_summary:
+            transactions_summary = self.get_transactions_summary()
+            data.update(transactions_summary)
+        
+        return data

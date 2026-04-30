@@ -3,10 +3,14 @@ import secrets
 
 class Config:
     SECRET_KEY = os.getenv('SECRET_KEY', secrets.token_hex(32))
+    ADMIN_SECRET_KEY = os.getenv('ADMIN_SECRET_KEY', secrets.token_hex(32))
     BASE_DIR = os.path.abspath(os.path.dirname(__file__))
     UPLOAD_FOLDER = '/tmp/uploads'
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+    
+    DEFAULT_ADMIN_USERNAME = os.getenv('DEFAULT_ADMIN_USERNAME', 'admin')
+    DEFAULT_ADMIN_PASSWORD = os.getenv('DEFAULT_ADMIN_PASSWORD', 'admin123')
     
     DATABASE_HOST = os.getenv('DATABASE_HOST', 'localhost')
     DATABASE_PORT = os.getenv('DATABASE_PORT', '5432')
@@ -35,4 +39,21 @@ class Config:
         'gold_above': '黄金以上'
     }
     
-    CORS_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173']
+    ADMIN_ROLES = {
+        'super_admin': '超级管理员',
+        'admin': '管理员'
+    }
+    
+    POST_STATUSES = {
+        'active': '正常',
+        'hidden': '已下架'
+    }
+    
+    CORS_ORIGINS = [
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'http://localhost:3002',
+        'http://localhost:3008',
+        'http://localhost:3009',
+        'http://localhost:5002'
+    ]

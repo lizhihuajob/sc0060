@@ -45,6 +45,47 @@ def init_database():
             cursor.execute('ALTER TABLE posts ADD COLUMN pin_expires_at TIMESTAMP')
             print('Added missing column: posts.pin_expires_at')
         
+        if not column_exists(cursor, 'posts', 'status'):
+            cursor.execute("ALTER TABLE posts ADD COLUMN status VARCHAR(50) DEFAULT 'active'")
+            print('Added missing column: posts.status')
+        
+        if not column_exists(cursor, 'posts', 'hidden_by'):
+            cursor.execute('ALTER TABLE posts ADD COLUMN hidden_by INTEGER')
+            print('Added missing column: posts.hidden_by')
+        
+        if not column_exists(cursor, 'posts', 'hidden_at'):
+            cursor.execute('ALTER TABLE posts ADD COLUMN hidden_at TIMESTAMP')
+            print('Added missing column: posts.hidden_at')
+        
+        if not column_exists(cursor, 'posts', 'hidden_reason'):
+            cursor.execute('ALTER TABLE posts ADD COLUMN hidden_reason TEXT')
+            print('Added missing column: posts.hidden_reason')
+        
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = 'admins'
+            )
+        """)
+        admins_table_exists = cursor.fetchone()[0]
+        
+        if not admins_table_exists:
+            cursor.execute('''
+                CREATE TABLE admins (
+                    id SERIAL PRIMARY KEY,
+                    username VARCHAR(255) UNIQUE NOT NULL,
+                    password VARCHAR(255) NOT NULL,
+                    email VARCHAR(255),
+                    role VARCHAR(50) DEFAULT 'admin',
+                    is_active INTEGER DEFAULT 1,
+                    last_login_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_admins_username ON admins(username)')
+            print('Created table: admins')
+        
         cursor.execute('''
             SELECT EXISTS (
                 SELECT FROM information_schema.tables 
@@ -127,6 +168,10 @@ def init_database():
             is_pinned INTEGER DEFAULT 0,
             pinned_at TIMESTAMP,
             pin_expires_at TIMESTAMP,
+            status VARCHAR(50) DEFAULT 'active',
+            hidden_by INTEGER,
+            hidden_at TIMESTAMP,
+            hidden_reason TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users (id)
         )
@@ -168,14 +213,30 @@ def init_database():
         )
     ''')
     
+    cursor.execute('''
+        CREATE TABLE admins (
+            id SERIAL PRIMARY KEY,
+            username VARCHAR(255) UNIQUE NOT NULL,
+            password VARCHAR(255) NOT NULL,
+            email VARCHAR(255),
+            role VARCHAR(50) DEFAULT 'admin',
+            is_active INTEGER DEFAULT 1,
+            last_login_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_user_id ON posts(user_id)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_views_count ON posts(views_count)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_status ON posts(status)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_comments_post_id ON comments(post_id)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_comments_user_id ON comments(user_id)')
     cursor.execute('CREATE INDEX idx_favorites_user_id ON favorites(user_id)')
     cursor.execute('CREATE INDEX idx_favorites_post_id ON favorites(post_id)')
+    cursor.execute('CREATE INDEX idx_admins_username ON admins(username)')
     
     conn.commit()
     conn.close()
