@@ -603,6 +603,24 @@ def get_user_favorites():
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
+@app.route('/')
+def index():
+    return jsonify({
+        'success': True,
+        'message': '公告平台后端服务运行中',
+        'info': '请通过前端端口访问：http://localhost:3008',
+        'api_base': '/api'
+    })
+
+@app.route('/health')
+def health_check():
+    return jsonify({
+        'success': True,
+        'message': '服务运行正常',
+        'service': 'main-backend',
+        'port': 5000
+    })
+
 @app.errorhandler(404)
 def page_not_found(e):
     return jsonify({'success': False, 'message': '接口不存在'}), 404
