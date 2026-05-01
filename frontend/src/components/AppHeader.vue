@@ -12,6 +12,11 @@
       </nav>
       
       <div class="nav-actions">
+        <button class="theme-toggle-btn" @click="toggleTheme" :title="theme === 'dark' ? '切换到亮色模式' : '切换到暗黑模式'">
+          <el-icon v-if="theme === 'dark'"><Sunny /></el-icon>
+          <el-icon v-else><Moon /></el-icon>
+        </button>
+        
         <template v-if="user">
           <el-dropdown @command="handleCommand">
             <div class="user-info">
@@ -51,8 +56,10 @@
 </template>
 
 <script setup>
+import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { CaretBottom, User, Wallet, TrendCharts, SwitchButton } from '@element-plus/icons-vue'
+import { CaretBottom, User, Wallet, TrendCharts, SwitchButton, Sunny, Moon } from '@element-plus/icons-vue'
+import { useThemeStore } from '../stores/themeStore'
 
 const props = defineProps({
   user: {
@@ -64,6 +71,11 @@ const props = defineProps({
 const emit = defineEmits(['logout'])
 
 const router = useRouter()
+const { theme, toggleTheme, initTheme } = useThemeStore()
+
+onMounted(() => {
+  initTheme()
+})
 
 const handleCommand = (command) => {
   switch (command) {
@@ -88,10 +100,10 @@ const handleCommand = (command) => {
   position: sticky;
   top: 0;
   z-index: 100;
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--color-navbar);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  border-bottom: 1px solid var(--color-border-light);
 }
 
 .header-container {
@@ -167,6 +179,30 @@ const handleCommand = (command) => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.theme-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+  font-size: 18px;
+}
+
+.theme-toggle-btn:hover {
+  color: var(--color-text);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+html.dark .theme-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .auth-link {

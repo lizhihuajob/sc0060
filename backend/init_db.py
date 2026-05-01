@@ -243,6 +243,14 @@ def init_database():
             cursor.execute('ALTER TABLE users ADD COLUMN ban_reason TEXT')
             print('Added missing column: users.ban_reason')
         
+        if not column_exists(cursor, 'comments', 'parent_id'):
+            cursor.execute('ALTER TABLE comments ADD COLUMN parent_id INTEGER')
+            print('Added missing column: comments.parent_id')
+        
+        if not column_exists(cursor, 'comments', 'reply_to_user_id'):
+            cursor.execute('ALTER TABLE comments ADD COLUMN reply_to_user_id INTEGER')
+            print('Added missing column: comments.reply_to_user_id')
+        
         cursor.execute('''
             SELECT EXISTS (
                 SELECT FROM information_schema.tables 
@@ -369,10 +377,14 @@ def init_database():
             id SERIAL PRIMARY KEY,
             post_id INTEGER NOT NULL,
             user_id INTEGER NOT NULL,
+            parent_id INTEGER,
+            reply_to_user_id INTEGER,
             content TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE CASCADE,
-            FOREIGN KEY (user_id) REFERENCES users (id)
+            FOREIGN KEY (user_id) REFERENCES users (id),
+            FOREIGN KEY (parent_id) REFERENCES comments (id) ON DELETE CASCADE,
+            FOREIGN KEY (reply_to_user_id) REFERENCES users (id)
         )
     ''')
     
