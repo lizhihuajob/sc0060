@@ -497,7 +497,7 @@ onMounted(async () => {
 .hero-section {
   position: relative;
   padding: 80px 0 60px;
-  background: linear-gradient(180deg, #ffffff 0%, var(--color-background) 100%);
+  background: linear-gradient(180deg, var(--color-background-secondary) 0%, var(--color-background) 100%);
   overflow: hidden;
 }
 
@@ -543,7 +543,7 @@ onMounted(async () => {
 .hero-search-box {
   padding: 8px;
   border-radius: var(--radius-xl);
-  background: white;
+  background: var(--color-background-secondary);
   box-shadow: var(--shadow-lg);
   border: 1px solid var(--color-border-light);
 }
@@ -553,7 +553,7 @@ onMounted(async () => {
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  background: white;
+  background: var(--color-background-secondary);
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border-light);
   transition: all var(--transition-fast);
@@ -745,6 +745,10 @@ onMounted(async () => {
   border-radius: var(--radius-md);
 }
 
+:deep(html.dark) .filter-tabs {
+  background: rgba(255, 255, 255, 0.05);
+}
+
 .filter-tab {
   padding: 8px 16px;
   border: none;
@@ -761,7 +765,7 @@ onMounted(async () => {
 }
 
 .filter-tab.active {
-  background: white;
+  background: var(--color-background-secondary);
   color: var(--color-text);
   font-weight: var(--font-weight-medium);
   box-shadow: var(--shadow-sm);
@@ -776,7 +780,7 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  background: white;
+  background: var(--color-background-secondary);
   border: 1px solid var(--color-border-light);
   border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
@@ -844,7 +848,7 @@ onMounted(async () => {
 
 .pinned-card {
   position: relative;
-  background: linear-gradient(135deg, #ffffff 0%, #fafafa 100%);
+  background: var(--color-background-secondary);
   border-radius: var(--radius-xl);
   padding: 24px;
   cursor: pointer;
@@ -1109,7 +1113,7 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
   padding: 14px 40px;
-  background: white;
+  background: var(--color-background-secondary);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-xl);
   font-size: var(--font-size-base);
@@ -1210,7 +1214,7 @@ onMounted(async () => {
 }
 
 .quick-actions {
-  background: white;
+  background: var(--color-background-secondary);
 }
 
 .action-list {
