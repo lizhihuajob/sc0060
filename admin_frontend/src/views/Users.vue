@@ -68,15 +68,38 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="注册时间" width="180">
+        <el-table-column prop="is_banned" label="状态" width="100">
+          <template #default="scope">
+            <el-tag :type="scope.row.is_banned ? 'danger' : 'success'" size="small">
+              {{ scope.row.is_banned ? '已封禁' : '正常' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="created_at" label="注册时间" width="160">
           <template #default="scope">
             {{ formatDate(scope.row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="100" fixed="right">
+        <el-table-column label="操作" width="180" fixed="right">
           <template #default="scope">
             <el-button type="primary" text @click="viewDetail(scope.row)">
               详情
+            </el-button>
+            <el-button
+              v-if="!scope.row.is_banned"
+              type="danger"
+              text
+              @click="handleBan(scope.row)"
+            >
+              封禁
+            </el-button>
+            <el-button
+              v-else
+              type="success"
+              text
+              @click="handleUnban(scope.row)"
+            >
+              解封
             </el-button>
           </template>
         </el-table-column>
@@ -123,6 +146,17 @@
             ¥{{ currentUser.total_spent || 0 }}
           </el-tag>
         </el-descriptions-item>
+        <el-descriptions-item label="账户状态">
+          <el-tag :type="currentUser.is_banned ? 'danger' : 'success'" size="small">
+            {{ currentUser.is_banned ? '已封禁' : '正常' }}
+          </el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="封禁时间">
+          {{ formatDate(currentUser.banned_at) }}
+        </el-descriptions-item>
+        <el-descriptions-item label="封禁原因" :span="2">
+          {{ currentUser.ban_reason || '无' }}
+        </el-descriptions-item>
       </el-descriptions>
 
       <el-divider content-position="left">最近交易记录</el-divider>
@@ -150,6 +184,42 @@
           </template>
         </el-table-column>
       </el-table>
+      
+      <template #footer>
+        <div v-if="currentUser">
+          <el-button
+            v-if="!currentUser.is_banned"
+            type="danger"
+            @click="handleBanDetail"
+          >
+            封禁用户
+          </el-button>
+          <el-button
+            v-else
+            type="success"
+            @click="handleUnbanDetail"
+          >
+            解封用户
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="banReasonVisible" title="封禁原因" width="500px">
+      <el-form :model="banForm" label-width="80px">
+        <el-form-item label="封禁原因">
+          <el-input
+            v-model="banForm.reason"
+            type="textarea"
+            :rows="4"
+            placeholder="请输入封禁原因（可选）"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="banReasonVisible = false">取消</el-button>
+        <el-button type="danger" @click="confirmBan">确认封禁</el-button>
+      </template>
     </el-dialog>
   </div>
 </template>
@@ -157,7 +227,14 @@
 <script setup>
 import { reactive, ref, onMounted } from 'vue'
 import { userApi } from '../services/api'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
+
+const banReasonVisible = ref(false)
+const pendingBanUser = ref(null)
+
+const banForm = reactive({
+  reason: ''
+})
 
 const loading = ref(false)
 const users = ref([])
@@ -236,6 +313,78 @@ const viewDetail = async (row) => {
   } catch (error) {
     console.error('获取用户详情失败:', error)
     ElMessage.error('获取用户详情失败')
+  }
+}
+
+const handleBan = (row) => {
+  pendingBanUser.value = row
+  banForm.reason = ''
+  banReasonVisible.value = true
+}
+
+const handleUnban = async (row) => {
+  try {
+    await ElMessageBox.confirm('确定要解封该用户吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+
+    const response = await userApi.unban(row.id)
+    if (response.data.success) {
+      ElMessage.success('用户已解封')
+      fetchUsers()
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('解封用户失败:', error)
+    }
+  }
+}
+
+const handleBanDetail = () => {
+  if (!currentUser.value) return
+  pendingBanUser.value = currentUser.value
+  banForm.reason = ''
+  detailVisible.value = false
+  banReasonVisible.value = true
+}
+
+const handleUnbanDetail = async () => {
+  if (!currentUser.value) return
+  
+  try {
+    await ElMessageBox.confirm('确定要解封该用户吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+
+    const response = await userApi.unban(currentUser.value.id)
+    if (response.data.success) {
+      ElMessage.success('用户已解封')
+      currentUser.value.is_banned = 0
+      fetchUsers()
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('解封用户失败:', error)
+    }
+  }
+}
+
+const confirmBan = async () => {
+  if (!pendingBanUser.value) return
+
+  try {
+    const response = await userApi.ban(pendingBanUser.value.id, banForm.reason)
+    if (response.data.success) {
+      ElMessage.success('用户已封禁')
+      banReasonVisible.value = false
+      fetchUsers()
+    }
+  } catch (error) {
+    console.error('封禁用户失败:', error)
   }
 }
 

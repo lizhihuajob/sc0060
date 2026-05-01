@@ -7,7 +7,7 @@ from config import Config
 from init_db import init_database
 init_database()
 
-from models import Admin, User, Post, Transaction, Tag, PostTag
+from models import Admin, User, Post, Transaction, Tag, PostTag, Report, Announcement
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 ADMIN_STATIC_FOLDER = os.path.join(BASE_DIR, 'admin_static')
@@ -61,6 +61,7 @@ def admin_login():
                 )
                 session.pop('admin_id', None)
                 session['admin_id'] = admin.id
+                session.permanent = True
                 admin.update_last_login()
                 return jsonify({
                     'success': True,
@@ -76,6 +77,7 @@ def admin_login():
     if admin.check_password(password):
         session.pop('admin_id', None)
         session['admin_id'] = admin.id
+        session.permanent = True
         admin.update_last_login()
         return jsonify({
             'success': True,
@@ -530,6 +532,10 @@ def get_dashboard():
             'name': Config.USER_LEVELS[level_key]['name']
         }
     
+    pending_reports = Report.count_for_admin(status=Report.STATUS_PENDING)
+    active_announcements = Announcement.count_for_admin(status=Announcement.STATUS_ACTIVE)
+    banned_users = User.count_for_admin()
+    
     return jsonify({
         'success': True,
         'dashboard': {
@@ -538,9 +544,397 @@ def get_dashboard():
             'active_posts': active_posts,
             'hidden_posts': hidden_posts,
             'total_recharge': total_recharge,
+            'pending_reports': pending_reports,
+            'active_announcements': active_announcements,
             'level_distribution': level_stats,
             'recent_users': [u.to_dict() for u in recent_users],
             'recent_posts': [p.to_dict(include_author=True) for p in recent_posts]
+        }
+    })
+
+@admin_app.route('/api/admin/reports', methods=['GET'])
+@admin_login_required
+def get_reports_list():
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    offset = (page - 1) * per_page
+    
+    status = request.args.get('status', '').strip()
+    status_filter = status if status else None
+    
+    reports = Report.get_for_admin(
+        limit=per_page,
+        offset=offset,
+        status=status_filter
+    )
+    
+    total = Report.count_for_admin(status=status_filter)
+    
+    reports_data = []
+    for report in reports:
+        report_dict = report.to_dict(
+            include_reporter=True,
+            include_handler=True,
+            include_target=True
+        )
+        reports_data.append(report_dict)
+    
+    return jsonify({
+        'success': True,
+        'reports': reports_data,
+        'page': page,
+        'per_page': per_page,
+        'total': total,
+        'total_pages': (total + per_page - 1) // per_page
+    })
+
+@admin_app.route('/api/admin/reports/<int:report_id>', methods=['GET'])
+@admin_login_required
+def get_report_detail(report_id):
+    report = Report.get_by_id(report_id)
+    
+    if not report:
+        return jsonify({'success': False, 'message': '举报不存在'}), 404
+    
+    return jsonify({
+        'success': True,
+        'report': report.to_dict(
+            include_reporter=True,
+            include_handler=True,
+            include_target=True
+        )
+    })
+
+@admin_app.route('/api/admin/reports/<int:report_id>/resolve', methods=['POST'])
+@admin_login_required
+def resolve_report(report_id):
+    admin = get_current_admin()
+    report = Report.get_by_id(report_id)
+    
+    if not report:
+        return jsonify({'success': False, 'message': '举报不存在'}), 404
+    
+    if not report.is_pending():
+        return jsonify({'success': False, 'message': '该举报已被处理'}), 400
+    
+    data = request.get_json() or {}
+    note = data.get('note', '').strip()
+    
+    report.resolve(admin.id, note=note if note else None)
+    
+    return jsonify({
+        'success': True,
+        'message': '举报已处理',
+        'report': report.to_dict(include_reporter=True, include_handler=True)
+    })
+
+@admin_app.route('/api/admin/reports/<int:report_id>/dismiss', methods=['POST'])
+@admin_login_required
+def dismiss_report(report_id):
+    admin = get_current_admin()
+    report = Report.get_by_id(report_id)
+    
+    if not report:
+        return jsonify({'success': False, 'message': '举报不存在'}), 404
+    
+    if not report.is_pending():
+        return jsonify({'success': False, 'message': '该举报已被处理'}), 400
+    
+    data = request.get_json() or {}
+    note = data.get('note', '').strip()
+    
+    report.dismiss(admin.id, note=note if note else None)
+    
+    return jsonify({
+        'success': True,
+        'message': '举报已驳回',
+        'report': report.to_dict(include_reporter=True, include_handler=True)
+    })
+
+@admin_app.route('/api/admin/reports/stats', methods=['GET'])
+@admin_login_required
+def get_reports_stats():
+    total_reports = Report.count_for_admin()
+    pending_reports = Report.count_for_admin(status=Report.STATUS_PENDING)
+    resolved_reports = Report.count_for_admin(status=Report.STATUS_RESOLVED)
+    dismissed_reports = Report.count_for_admin(status=Report.STATUS_DISMISSED)
+    
+    return jsonify({
+        'success': True,
+        'stats': {
+            'total_reports': total_reports,
+            'pending_reports': pending_reports,
+            'resolved_reports': resolved_reports,
+            'dismissed_reports': dismissed_reports
+        }
+    })
+
+@admin_app.route('/api/admin/users/<int:user_id>/ban', methods=['POST'])
+@admin_login_required
+def ban_user(user_id):
+    admin = get_current_admin()
+    user = User.get_by_id(user_id)
+    
+    if not user:
+        return jsonify({'success': False, 'message': '用户不存在'}), 404
+    
+    if user.is_banned_user():
+        return jsonify({'success': False, 'message': '该用户已被封禁'}), 400
+    
+    data = request.get_json() or {}
+    reason = data.get('reason', '').strip()
+    
+    user.ban(admin.id, reason=reason if reason else None)
+    
+    return jsonify({
+        'success': True,
+        'message': '用户已封禁',
+        'user': user.to_dict(include_admin_info=True)
+    })
+
+@admin_app.route('/api/admin/users/<int:user_id>/unban', methods=['POST'])
+@admin_login_required
+def unban_user(user_id):
+    user = User.get_by_id(user_id)
+    
+    if not user:
+        return jsonify({'success': False, 'message': '用户不存在'}), 404
+    
+    if not user.is_banned_user():
+        return jsonify({'success': False, 'message': '该用户未被封禁'}), 400
+    
+    user.unban()
+    
+    return jsonify({
+        'success': True,
+        'message': '用户已解封',
+        'user': user.to_dict(include_admin_info=True)
+    })
+
+@admin_app.route('/api/admin/posts/<int:post_id>/pin', methods=['POST'])
+@admin_login_required
+def admin_pin_post(post_id):
+    post = Post.get_by_id(post_id)
+    
+    if not post:
+        return jsonify({'success': False, 'message': '帖子不存在'}), 404
+    
+    if post.is_pinned:
+        return jsonify({'success': False, 'message': '该帖子已置顶'}), 400
+    
+    data = request.get_json() or {}
+    duration_days = data.get('duration_days', 30)
+    
+    try:
+        duration_days = int(duration_days)
+        if duration_days <= 0:
+            raise ValueError()
+    except:
+        return jsonify({'success': False, 'message': '无效的置顶天数'}), 400
+    
+    post.pin(duration_days=duration_days)
+    
+    return jsonify({
+        'success': True,
+        'message': f'帖子已置顶，有效期{duration_days}天',
+        'post': post.to_dict(include_author=True, include_admin_info=True)
+    })
+
+@admin_app.route('/api/admin/posts/<int:post_id>/unpin', methods=['POST'])
+@admin_login_required
+def admin_unpin_post(post_id):
+    post = Post.get_by_id(post_id)
+    
+    if not post:
+        return jsonify({'success': False, 'message': '帖子不存在'}), 404
+    
+    if not post.is_pinned:
+        return jsonify({'success': False, 'message': '该帖子未置顶'}), 400
+    
+    post.unpin()
+    
+    return jsonify({
+        'success': True,
+        'message': '帖子已取消置顶',
+        'post': post.to_dict(include_author=True, include_admin_info=True)
+    })
+
+@admin_app.route('/api/admin/announcements', methods=['GET'])
+@admin_login_required
+def get_announcements_list():
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    offset = (page - 1) * per_page
+    
+    status = request.args.get('status', '').strip()
+    status_filter = status if status else None
+    
+    announcements = Announcement.get_for_admin(
+        limit=per_page,
+        offset=offset,
+        status=status_filter
+    )
+    
+    total = Announcement.count_for_admin(status=status_filter)
+    
+    return jsonify({
+        'success': True,
+        'announcements': [a.to_dict(include_admin=True) for a in announcements],
+        'page': page,
+        'per_page': per_page,
+        'total': total,
+        'total_pages': (total + per_page - 1) // per_page
+    })
+
+@admin_app.route('/api/admin/announcements/<int:announcement_id>', methods=['GET'])
+@admin_login_required
+def get_announcement_admin_detail(announcement_id):
+    announcement = Announcement.get_by_id(announcement_id)
+    
+    if not announcement:
+        return jsonify({'success': False, 'message': '公告不存在'}), 404
+    
+    return jsonify({
+        'success': True,
+        'announcement': announcement.to_dict(include_admin=True)
+    })
+
+@admin_app.route('/api/admin/announcements', methods=['POST'])
+@admin_login_required
+def create_announcement():
+    admin = get_current_admin()
+    data = request.get_json()
+    
+    title = data.get('title', '').strip()
+    content = data.get('content', '').strip()
+    is_pinned = data.get('is_pinned', 0)
+    
+    if not title or not content:
+        return jsonify({'success': False, 'message': '标题和内容不能为空'}), 400
+    
+    try:
+        is_pinned = int(is_pinned)
+    except:
+        is_pinned = 0
+    
+    announcement = Announcement.create(
+        admin_id=admin.id,
+        title=title,
+        content=content,
+        is_pinned=is_pinned
+    )
+    
+    return jsonify({
+        'success': True,
+        'message': '公告发布成功',
+        'announcement': announcement.to_dict(include_admin=True)
+    })
+
+@admin_app.route('/api/admin/announcements/<int:announcement_id>', methods=['PUT'])
+@admin_login_required
+def update_announcement(announcement_id):
+    announcement = Announcement.get_by_id(announcement_id)
+    
+    if not announcement:
+        return jsonify({'success': False, 'message': '公告不存在'}), 404
+    
+    data = request.get_json()
+    
+    title = data.get('title')
+    content = data.get('content')
+    is_pinned = data.get('is_pinned')
+    status = data.get('status')
+    
+    updates = {}
+    if title is not None:
+        updates['title'] = title.strip() if title else None
+    if content is not None:
+        updates['content'] = content.strip() if content else None
+    if is_pinned is not None:
+        try:
+            updates['is_pinned'] = int(is_pinned)
+        except:
+            pass
+    if status is not None:
+        updates['status'] = status
+    
+    if not updates:
+        return jsonify({'success': False, 'message': '没有需要更新的内容'}), 400
+    
+    announcement.update(**updates)
+    
+    return jsonify({
+        'success': True,
+        'message': '公告更新成功',
+        'announcement': announcement.to_dict(include_admin=True)
+    })
+
+@admin_app.route('/api/admin/announcements/<int:announcement_id>/pin', methods=['POST'])
+@admin_login_required
+def pin_announcement(announcement_id):
+    announcement = Announcement.get_by_id(announcement_id)
+    
+    if not announcement:
+        return jsonify({'success': False, 'message': '公告不存在'}), 404
+    
+    if announcement.is_pinned:
+        return jsonify({'success': False, 'message': '该公告已置顶'}), 400
+    
+    announcement.pin()
+    
+    return jsonify({
+        'success': True,
+        'message': '公告已置顶',
+        'announcement': announcement.to_dict(include_admin=True)
+    })
+
+@admin_app.route('/api/admin/announcements/<int:announcement_id>/unpin', methods=['POST'])
+@admin_login_required
+def unpin_announcement(announcement_id):
+    announcement = Announcement.get_by_id(announcement_id)
+    
+    if not announcement:
+        return jsonify({'success': False, 'message': '公告不存在'}), 404
+    
+    if not announcement.is_pinned:
+        return jsonify({'success': False, 'message': '该公告未置顶'}), 400
+    
+    announcement.unpin()
+    
+    return jsonify({
+        'success': True,
+        'message': '公告已取消置顶',
+        'announcement': announcement.to_dict(include_admin=True)
+    })
+
+@admin_app.route('/api/admin/announcements/<int:announcement_id>', methods=['DELETE'])
+@admin_login_required
+def delete_announcement(announcement_id):
+    announcement = Announcement.get_by_id(announcement_id)
+    
+    if not announcement:
+        return jsonify({'success': False, 'message': '公告不存在'}), 404
+    
+    announcement.delete()
+    
+    return jsonify({
+        'success': True,
+        'message': '公告已删除'
+    })
+
+@admin_app.route('/api/admin/announcements/stats', methods=['GET'])
+@admin_login_required
+def get_announcements_stats():
+    total_announcements = Announcement.count_for_admin()
+    active_announcements = Announcement.count_for_admin(status=Announcement.STATUS_ACTIVE)
+    inactive_announcements = Announcement.count_for_admin(status=Announcement.STATUS_INACTIVE)
+    
+    return jsonify({
+        'success': True,
+        'stats': {
+            'total_announcements': total_announcements,
+            'active_announcements': active_announcements,
+            'inactive_announcements': inactive_announcements
         }
     })
 

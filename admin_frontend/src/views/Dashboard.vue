@@ -11,7 +11,7 @@
     </el-card>
 
     <el-row :gutter="20" class="stats-row">
-      <el-col :span="6">
+      <el-col :span="4">
         <el-card class="stat-card">
           <div class="stat-content">
             <el-icon size="40" class="stat-icon user-icon"><UserFilled /></el-icon>
@@ -22,7 +22,7 @@
           </div>
         </el-card>
       </el-col>
-      <el-col :span="6">
+      <el-col :span="4">
         <el-card class="stat-card">
           <div class="stat-content">
             <el-icon size="40" class="stat-icon post-icon"><Document /></el-icon>
@@ -33,7 +33,7 @@
           </div>
         </el-card>
       </el-col>
-      <el-col :span="6">
+      <el-col :span="4">
         <el-card class="stat-card">
           <div class="stat-content">
             <el-icon size="40" class="stat-icon active-icon"><CircleCheck /></el-icon>
@@ -44,7 +44,29 @@
           </div>
         </el-card>
       </el-col>
-      <el-col :span="6">
+      <el-col :span="4">
+        <el-card class="stat-card">
+          <div class="stat-content">
+            <el-icon size="40" class="stat-icon report-icon"><Warning /></el-icon>
+            <div class="stat-info">
+              <div class="stat-value">{{ dashboard.pending_reports || 0 }}</div>
+              <div class="stat-label">待处理举报</div>
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="4">
+        <el-card class="stat-card">
+          <div class="stat-content">
+            <el-icon size="40" class="stat-icon announcement-icon"><Bell /></el-icon>
+            <div class="stat-info">
+              <div class="stat-value">{{ dashboard.active_announcements || 0 }}</div>
+              <div class="stat-label">活跃公告</div>
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="4">
         <el-card class="stat-card">
           <div class="stat-content">
             <el-icon size="40" class="stat-icon money-icon"><Wallet /></el-icon>
@@ -238,6 +260,16 @@ onMounted(() => {
 .money-icon {
   background: rgba(230, 162, 60, 0.1);
   color: #E6A23C;
+}
+
+.report-icon {
+  background: rgba(245, 108, 108, 0.1);
+  color: #F56C6C;
+}
+
+.announcement-icon {
+  background: rgba(64, 158, 255, 0.1);
+  color: #409EFF;
 }
 
 .stat-info {

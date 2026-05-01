@@ -62,7 +62,9 @@ export const adminApi = {
 export const userApi = {
   getList: (params) => apiClient.get('/users', { params }),
   getById: (userId) => apiClient.get(`/users/${userId}`),
-  getStats: () => apiClient.get('/users/stats')
+  getStats: () => apiClient.get('/users/stats'),
+  ban: (userId, reason) => apiClient.post(`/users/${userId}/ban`, { reason }),
+  unban: (userId) => apiClient.post(`/users/${userId}/unban`)
 }
 
 export const postApi = {
@@ -70,11 +72,32 @@ export const postApi = {
   getById: (postId) => apiClient.get(`/posts/${postId}`),
   hide: (postId, reason) => apiClient.post(`/posts/${postId}/hide`, { reason }),
   unhide: (postId) => apiClient.post(`/posts/${postId}/unhide`),
+  pin: (postId, durationDays) => apiClient.post(`/posts/${postId}/pin`, { duration_days: durationDays }),
+  unpin: (postId) => apiClient.post(`/posts/${postId}/unpin`),
   getStats: () => apiClient.get('/posts/stats')
 }
 
 export const dashboardApi = {
   getDashboard: () => apiClient.get('/dashboard')
+}
+
+export const reportApi = {
+  getList: (params) => apiClient.get('/reports', { params }),
+  getById: (reportId) => apiClient.get(`/reports/${reportId}`),
+  resolve: (reportId, note) => apiClient.post(`/reports/${reportId}/resolve`, { note }),
+  dismiss: (reportId, note) => apiClient.post(`/reports/${reportId}/dismiss`, { note }),
+  getStats: () => apiClient.get('/reports/stats')
+}
+
+export const announcementApi = {
+  getList: (params) => apiClient.get('/announcements', { params }),
+  getById: (announcementId) => apiClient.get(`/announcements/${announcementId}`),
+  create: (data) => apiClient.post('/announcements', data),
+  update: (announcementId, data) => apiClient.put(`/announcements/${announcementId}`, data),
+  delete: (announcementId) => apiClient.delete(`/announcements/${announcementId}`),
+  pin: (announcementId) => apiClient.post(`/announcements/${announcementId}/pin`),
+  unpin: (announcementId) => apiClient.post(`/announcements/${announcementId}/unpin`),
+  getStats: () => apiClient.get('/announcements/stats')
 }
 
 export default apiClient

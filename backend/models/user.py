@@ -12,7 +12,12 @@ class User:
         self.level = kwargs.get('level', 'bronze')
         self.posts_count = kwargs.get('posts_count', 0)
         self.balance = kwargs.get('balance', 0)
+        self.is_banned = kwargs.get('is_banned', 0)
+        self.banned_at = kwargs.get('banned_at')
+        self.banned_by = kwargs.get('banned_by')
+        self.ban_reason = kwargs.get('ban_reason')
         self.created_at = kwargs.get('created_at')
+        self._banned_by_admin = None
     
     @staticmethod
     def create(username, password, email=None):
@@ -194,7 +199,42 @@ class User:
         self.avatar = avatar_filename
         return True
     
-    def to_dict(self, include_transactions_summary=False):
+    def ban(self, admin_id, reason=None):
+        from datetime import datetime
+        now = datetime.now()
+        execute(
+            '''UPDATE users SET is_banned = %s, banned_at = %s, banned_by = %s, ban_reason = %s 
+               WHERE id = %s''',
+            (1, now, admin_id, reason, self.id)
+        )
+        self.is_banned = 1
+        self.banned_at = now
+        self.banned_by = admin_id
+        self.ban_reason = reason
+        return True
+    
+    def unban(self):
+        execute(
+            '''UPDATE users SET is_banned = %s, banned_at = %s, banned_by = %s, ban_reason = %s 
+               WHERE id = %s''',
+            (0, None, None, None, self.id)
+        )
+        self.is_banned = 0
+        self.banned_at = None
+        self.banned_by = None
+        self.ban_reason = None
+        return True
+    
+    def is_banned_user(self):
+        return self.is_banned == 1
+    
+    def get_banned_by_admin(self):
+        if self._banned_by_admin is None and self.banned_by:
+            from models.admin import Admin
+            self._banned_by_admin = Admin.get_by_id(self.banned_by)
+        return self._banned_by_admin
+    
+    def to_dict(self, include_transactions_summary=False, include_admin_info=False):
         data = {
             'id': self.id,
             'username': self.username,
@@ -205,8 +245,21 @@ class User:
             'posts_count': self.posts_count,
             'posts_limit': self.get_posts_limit(),
             'balance': self.balance,
+            'is_banned': self.is_banned_user(),
             'created_at': self.created_at
         }
+        
+        if include_admin_info:
+            data['banned_at'] = self.banned_at
+            data['banned_by'] = self.banned_by
+            data['ban_reason'] = self.ban_reason
+            
+            banned_admin = self.get_banned_by_admin()
+            if banned_admin:
+                data['banned_by_admin'] = {
+                    'id': banned_admin.id,
+                    'username': banned_admin.username
+                }
         
         if include_transactions_summary:
             transactions_summary = self.get_transactions_summary()

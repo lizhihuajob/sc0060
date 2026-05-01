@@ -9,7 +9,7 @@ from config import Config
 from init_db import init_database
 init_database()
 
-from models import User, Post, Transaction, Comment, Favorite
+from models import User, Post, Transaction, Comment, Favorite, Report, Announcement
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -28,6 +28,12 @@ def login_required(f):
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
             return jsonify({'success': False, 'message': '请先登录'}), 401
+        
+        user = User.get_by_id(session['user_id'])
+        if user and user.is_banned_user():
+            session.pop('user_id', None)
+            return jsonify({'success': False, 'message': '您的账户已被封禁，请联系管理员'}), 403
+        
         return f(*args, **kwargs)
     return decorated_function
 
@@ -71,6 +77,7 @@ def register():
     user = User.create(username, password, email)
     session.pop('user_id', None)
     session['user_id'] = user.id
+    session.permanent = True
     
     return jsonify({
         'success': True,
@@ -92,6 +99,7 @@ def login():
     if user and user.check_password(password):
         session.pop('user_id', None)
         session['user_id'] = user.id
+        session.permanent = True
         return jsonify({
             'success': True,
             'message': '登录成功！',
@@ -705,6 +713,118 @@ def get_user_favorites():
         'page': page,
         'per_page': per_page,
         'has_more': len(posts_data) >= per_page
+    })
+
+@app.route('/api/reports', methods=['POST'])
+@login_required
+def create_report():
+    user = get_current_user()
+    data = request.get_json()
+    
+    target_type = data.get('target_type', '').strip()
+    target_id = data.get('target_id')
+    reason = data.get('reason', '').strip() or data.get('reason_type', '').strip()
+    reason_detail = data.get('reason_detail', '').strip() or data.get('description', '').strip()
+    
+    valid_target_types = [Report.TYPE_POST, Report.TYPE_COMMENT, Report.TYPE_USER]
+    if target_type not in valid_target_types:
+        return jsonify({'success': False, 'message': '无效的举报类型'}), 400
+    
+    if not target_id:
+        return jsonify({'success': False, 'message': '请指定举报目标'}), 400
+    
+    valid_reasons = [Report.REASON_SPAM, Report.REASON_INAPPROPRIATE, Report.REASON_VIOLATION, Report.REASON_OTHER]
+    if reason not in valid_reasons:
+        return jsonify({'success': False, 'message': '无效的举报原因'}), 400
+    
+    if target_type == Report.TYPE_POST:
+        post = Post.get_by_id(target_id)
+        if not post:
+            return jsonify({'success': False, 'message': '举报的帖子不存在'}), 404
+    
+    elif target_type == Report.TYPE_COMMENT:
+        comment = Comment.get_by_id(target_id)
+        if not comment:
+            return jsonify({'success': False, 'message': '举报的评论不存在'}), 404
+    
+    elif target_type == Report.TYPE_USER:
+        target_user = User.get_by_id(target_id)
+        if not target_user:
+            return jsonify({'success': False, 'message': '举报的用户不存在'}), 404
+        if target_user.id == user.id:
+            return jsonify({'success': False, 'message': '不能举报自己'}), 400
+    
+    report = Report.create(
+        user_id=user.id,
+        target_type=target_type,
+        target_id=target_id,
+        reason=reason,
+        reason_detail=reason_detail if reason_detail else None
+    )
+    
+    return jsonify({
+        'success': True,
+        'message': '举报已提交，感谢您的反馈',
+        'report': report.to_dict()
+    })
+
+@app.route('/api/reports/my', methods=['GET'])
+@login_required
+def get_my_reports():
+    user = get_current_user()
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    offset = (page - 1) * per_page
+    
+    reports = Report.get_by_user(user.id, limit=per_page, offset=offset)
+    
+    return jsonify({
+        'success': True,
+        'reports': [r.to_dict() for r in reports],
+        'page': page,
+        'per_page': per_page,
+        'has_more': len(reports) >= per_page
+    })
+
+@app.route('/api/announcements', methods=['GET'])
+def get_announcements():
+    current_user = get_current_user()
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    offset = (page - 1) * per_page
+    
+    announcements = Announcement.get_active(current_user, limit=per_page, offset=offset)
+    
+    return jsonify({
+        'success': True,
+        'announcements': [a.to_dict() for a in announcements],
+        'page': page,
+        'per_page': per_page,
+        'has_more': len(announcements) >= per_page
+    })
+
+@app.route('/api/announcements/pinned', methods=['GET'])
+def get_pinned_announcements():
+    current_user = get_current_user()
+    limit = request.args.get('limit', 3, type=int)
+    
+    announcements = Announcement.get_pinned(current_user, limit=limit)
+    
+    return jsonify({
+        'success': True,
+        'announcements': [a.to_dict() for a in announcements]
+    })
+
+@app.route('/api/announcements/<int:announcement_id>', methods=['GET'])
+def get_announcement_detail(announcement_id):
+    announcement = Announcement.get_by_id(announcement_id)
+    
+    if not announcement or not announcement.is_active():
+        return jsonify({'success': False, 'message': '公告不存在'}), 404
+    
+    return jsonify({
+        'success': True,
+        'announcement': announcement.to_dict(include_admin=True)
     })
 
 @app.route('/api/uploads/<filename>')

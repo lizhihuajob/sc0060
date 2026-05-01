@@ -43,12 +43,63 @@
             <el-icon><View /></el-icon>
             <span>可见范围：{{ post.view_permission_name }}</span>
           </div>
-          <div class="view-info">
-            <el-icon><View /></el-icon>
-            <span>{{ post.views_count }} 次浏览</span>
+          <div class="footer-actions">
+            <div class="view-info">
+              <el-icon><View /></el-icon>
+              <span>{{ post.views_count }} 次浏览</span>
+            </div>
+            <button 
+              v-if="currentUser && currentUser.id !== post.author?.id"
+              class="report-btn" 
+              @click="showReportDialog"
+              title="举报违规内容"
+            >
+              <el-icon><Warning /></el-icon>
+              举报
+            </button>
           </div>
         </div>
       </div>
+
+      <el-dialog
+        v-model="reportVisible"
+        title="举报违规内容"
+        width="500px"
+        :close-on-click-modal="false"
+      >
+        <el-form :model="reportForm" label-width="80px">
+          <el-form-item label="举报类型">
+            <el-select 
+              v-model="reportForm.reason_type" 
+              placeholder="请选择举报原因类型"
+              style="width: 100%"
+            >
+              <el-option label="垃圾广告" value="spam" />
+              <el-option label="色情低俗" value="inappropriate" />
+              <el-option label="违规违法" value="violation" />
+              <el-option label="其他" value="other" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="详细描述">
+            <el-input
+              v-model="reportForm.description"
+              type="textarea"
+              :rows="4"
+              placeholder="请详细描述举报内容（可选）"
+            />
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="reportVisible = false">取消</el-button>
+          <el-button 
+            type="danger" 
+            :loading="reportSubmitting"
+            @click="submitReport"
+          >
+            提交举报
+          </el-button>
+        </template>
+      </el-dialog>
 
       <div class="comments-section card" v-if="post">
         <div class="comments-header">
@@ -141,11 +192,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, View, Loading, ChatDotRound, User, Delete } from '@element-plus/icons-vue'
-import { postApi, authApi } from '../services/api'
+import { ArrowLeft, View, Loading, ChatDotRound, User, Delete, Warning } from '@element-plus/icons-vue'
+import { postApi, authApi, reportApi } from '../services/api'
 import MarkdownRenderer from '../components/MarkdownRenderer.vue'
 
 const router = useRouter()
@@ -158,6 +209,13 @@ const commentsCount = ref(0)
 const loadingComments = ref(false)
 const newComment = ref('')
 const submitting = ref(false)
+const reportVisible = ref(false)
+const reportSubmitting = ref(false)
+
+const reportForm = reactive({
+  reason_type: '',
+  description: ''
+})
 
 const loadPost = async () => {
   loading.value = true
@@ -230,6 +288,42 @@ const deleteComment = async (comment) => {
     if (error !== 'cancel') {
       console.error('删除留言失败:', error)
     }
+  }
+}
+
+const showReportDialog = () => {
+  if (!currentUser.value) {
+    ElMessage.warning('请先登录')
+    return
+  }
+  reportForm.reason_type = ''
+  reportForm.description = ''
+  reportVisible.value = true
+}
+
+const submitReport = async () => {
+  if (!reportForm.reason_type) {
+    ElMessage.warning('请选择举报类型')
+    return
+  }
+  
+  reportSubmitting.value = true
+  try {
+    const response = await reportApi.create({
+      target_type: 'post',
+      target_id: post.value.id,
+      reason_type: reportForm.reason_type,
+      description: reportForm.description
+    })
+    
+    if (response.data.success) {
+      ElMessage.success('举报已提交，我们会尽快处理')
+      reportVisible.value = false
+    }
+  } catch (error) {
+    console.error('提交举报失败:', error)
+  } finally {
+    reportSubmitting.value = false
   }
 }
 
@@ -404,6 +498,12 @@ onMounted(() => {
   align-items: center;
 }
 
+.footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
 .permission-info,
 .view-info {
   display: flex;
@@ -411,6 +511,25 @@ onMounted(() => {
   gap: 8px;
   font-size: 14px;
   color: var(--color-text-secondary);
+}
+
+.report-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.report-btn:hover {
+  color: var(--color-danger);
+  background: rgba(255, 59, 48, 0.1);
 }
 
 .comments-section {

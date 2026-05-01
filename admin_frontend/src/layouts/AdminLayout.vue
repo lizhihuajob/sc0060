@@ -17,6 +17,10 @@
           <el-icon><Odometer /></el-icon>
           <span>仪表板</span>
         </el-menu-item>
+        <el-menu-item index="/reports">
+          <el-icon><Warning /></el-icon>
+          <span>举报管理</span>
+        </el-menu-item>
         <el-menu-item index="/users">
           <el-icon><User /></el-icon>
           <span>用户管理</span>
@@ -24,6 +28,10 @@
         <el-menu-item index="/posts">
           <el-icon><Document /></el-icon>
           <span>公告管理</span>
+        </el-menu-item>
+        <el-menu-item index="/announcements">
+          <el-icon><Bell /></el-icon>
+          <span>系统公告</span>
         </el-menu-item>
         <el-menu-item index="/profile">
           <el-icon><Setting /></el-icon>

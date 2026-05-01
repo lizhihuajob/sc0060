@@ -93,4 +93,15 @@ export const configApi = {
   getMembership: () => apiClient.get('/config')
 }
 
+export const reportApi = {
+  create: (data) => apiClient.post('/reports', data),
+  getMy: (params) => apiClient.get('/reports/my', { params })
+}
+
+export const announcementApi = {
+  getActive: (params) => apiClient.get('/announcements', { params }),
+  getPinned: () => apiClient.get('/announcements/pinned'),
+  getById: (id) => apiClient.get(`/announcements/${id}`)
+}
+
 export default apiClient
