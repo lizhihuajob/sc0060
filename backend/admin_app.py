@@ -61,6 +61,7 @@ def admin_login():
                 )
                 session.pop('admin_id', None)
                 session['admin_id'] = admin.id
+                session.permanent = True
                 admin.update_last_login()
                 return jsonify({
                     'success': True,
@@ -76,6 +77,7 @@ def admin_login():
     if admin.check_password(password):
         session.pop('admin_id', None)
         session['admin_id'] = admin.id
+        session.permanent = True
         admin.update_last_login()
         return jsonify({
             'success': True,

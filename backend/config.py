@@ -1,9 +1,13 @@
 import os
-import secrets
+from datetime import timedelta
 
 class Config:
-    SECRET_KEY = os.getenv('SECRET_KEY', secrets.token_hex(32))
-    ADMIN_SECRET_KEY = os.getenv('ADMIN_SECRET_KEY', secrets.token_hex(32))
+    SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production-2024')
+    ADMIN_SECRET_KEY = os.getenv('ADMIN_SECRET_KEY', 'admin-dev-secret-key-2024')
+    PERMANENT_SESSION_LIFETIME = timedelta(days=7)
+    SESSION_COOKIE_SECURE = os.getenv('FLASK_ENV') == 'production'
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
     BASE_DIR = os.path.abspath(os.path.dirname(__file__))
     UPLOAD_FOLDER = '/tmp/uploads'
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024

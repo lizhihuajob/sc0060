@@ -77,6 +77,7 @@ def register():
     user = User.create(username, password, email)
     session.pop('user_id', None)
     session['user_id'] = user.id
+    session.permanent = True
     
     return jsonify({
         'success': True,
@@ -98,6 +99,7 @@ def login():
     if user and user.check_password(password):
         session.pop('user_id', None)
         session['user_id'] = user.id
+        session.permanent = True
         return jsonify({
             'success': True,
             'message': '登录成功！',
