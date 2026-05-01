@@ -68,10 +68,26 @@
             {{ formatDate(scope.row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="150" fixed="right">
+        <el-table-column label="操作" width="220" fixed="right">
           <template #default="scope">
             <el-button type="primary" text @click="viewDetail(scope.row)">
               详情
+            </el-button>
+            <el-button
+              v-if="!scope.row.is_pinned"
+              type="warning"
+              text
+              @click="handlePin(scope.row)"
+            >
+              置顶
+            </el-button>
+            <el-button
+              v-else
+              type="info"
+              text
+              @click="handleUnpin(scope.row)"
+            >
+              取消置顶
             </el-button>
             <el-button
               v-if="!scope.row.is_hidden"
@@ -158,6 +174,20 @@
       <template #footer>
         <div v-if="currentPost">
           <el-button
+            v-if="!currentPost.is_pinned"
+            type="warning"
+            @click="handlePinDetail"
+          >
+            置顶公告
+          </el-button>
+          <el-button
+            v-else
+            type="info"
+            @click="handleUnpinDetail"
+          >
+            取消置顶
+          </el-button>
+          <el-button
             v-if="!currentPost.is_hidden"
             type="danger"
             @click="handleHideDetail"
@@ -172,6 +202,23 @@
             恢复公告
           </el-button>
         </div>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="pinVisible" title="置顶设置" width="400px">
+      <el-form :model="pinForm" label-width="100px">
+        <el-form-item label="置顶天数">
+          <el-input-number
+            v-model="pinForm.duration_days"
+            :min="1"
+            :max="365"
+            :step="1"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="pinVisible = false">取消</el-button>
+        <el-button type="warning" @click="confirmPin">确认置顶</el-button>
       </template>
     </el-dialog>
 
@@ -205,9 +252,15 @@ const detailVisible = ref(false)
 const currentPost = ref(null)
 const hideReasonVisible = ref(false)
 const pendingHidePost = ref(null)
+const pinVisible = ref(false)
+const pendingPinPost = ref(null)
 
 const hideForm = reactive({
   reason: ''
+})
+
+const pinForm = reactive({
+  duration_days: 30
 })
 
 const searchForm = reactive({
@@ -339,6 +392,78 @@ const handleUnhideDetail = async () => {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('恢复公告失败:', error)
+    }
+  }
+}
+
+const handlePin = (row) => {
+  pendingPinPost.value = row
+  pinForm.duration_days = 30
+  pinVisible.value = true
+}
+
+const handleUnpin = async (row) => {
+  try {
+    await ElMessageBox.confirm('确定要取消置顶该公告吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+
+    const response = await postApi.unpin(row.id)
+    if (response.data.success) {
+      ElMessage.success('公告已取消置顶')
+      fetchPosts()
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('取消置顶公告失败:', error)
+    }
+  }
+}
+
+const confirmPin = async () => {
+  if (!pendingPinPost.value) return
+
+  try {
+    const response = await postApi.pin(pendingPinPost.value.id, pinForm.duration_days)
+    if (response.data.success) {
+      ElMessage.success(`公告已置顶，有效期${pinForm.duration_days}天`)
+      pinVisible.value = false
+      fetchPosts()
+    }
+  } catch (error) {
+    console.error('置顶公告失败:', error)
+  }
+}
+
+const handlePinDetail = () => {
+  if (!currentPost.value) return
+  pendingPinPost.value = currentPost.value
+  pinForm.duration_days = 30
+  detailVisible.value = false
+  pinVisible.value = true
+}
+
+const handleUnpinDetail = async () => {
+  if (!currentPost.value) return
+  
+  try {
+    await ElMessageBox.confirm('确定要取消置顶该公告吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+
+    const response = await postApi.unpin(currentPost.value.id)
+    if (response.data.success) {
+      ElMessage.success('公告已取消置顶')
+      currentPost.value.is_pinned = 0
+      fetchPosts()
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('取消置顶公告失败:', error)
     }
   }
 }

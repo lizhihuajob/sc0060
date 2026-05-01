@@ -227,6 +227,85 @@ def init_database():
             cursor.execute('CREATE INDEX idx_post_tags_tag_id ON post_tags(tag_id)')
             print('Created table: post_tags')
         
+        if not column_exists(cursor, 'users', 'is_banned'):
+            cursor.execute('ALTER TABLE users ADD COLUMN is_banned INTEGER DEFAULT 0')
+            print('Added missing column: users.is_banned')
+        
+        if not column_exists(cursor, 'users', 'banned_at'):
+            cursor.execute('ALTER TABLE users ADD COLUMN banned_at TIMESTAMP')
+            print('Added missing column: users.banned_at')
+        
+        if not column_exists(cursor, 'users', 'banned_by'):
+            cursor.execute('ALTER TABLE users ADD COLUMN banned_by INTEGER')
+            print('Added missing column: users.banned_by')
+        
+        if not column_exists(cursor, 'users', 'ban_reason'):
+            cursor.execute('ALTER TABLE users ADD COLUMN ban_reason TEXT')
+            print('Added missing column: users.ban_reason')
+        
+        cursor.execute('''
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = 'reports'
+            )
+        ''')
+        reports_table_exists = cursor.fetchone()[0]
+        
+        if not reports_table_exists:
+            cursor.execute('''
+                CREATE TABLE reports (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    target_type VARCHAR(50) NOT NULL,
+                    target_id INTEGER NOT NULL,
+                    reason VARCHAR(50) NOT NULL,
+                    reason_detail TEXT,
+                    status VARCHAR(50) DEFAULT 'pending',
+                    handled_by INTEGER,
+                    handled_at TIMESTAMP,
+                    handled_note TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+                    FOREIGN KEY (handled_by) REFERENCES admins (id)
+                )
+            ''')
+            cursor.execute('CREATE INDEX idx_reports_user_id ON reports(user_id)')
+            cursor.execute('CREATE INDEX idx_reports_target ON reports(target_type, target_id)')
+            cursor.execute('CREATE INDEX idx_reports_status ON reports(status)')
+            cursor.execute('CREATE INDEX idx_reports_created_at ON reports(created_at)')
+            print('Created table: reports')
+        
+        cursor.execute('''
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = 'announcements'
+            )
+        ''')
+        announcements_table_exists = cursor.fetchone()[0]
+        
+        if not announcements_table_exists:
+            cursor.execute('''
+                CREATE TABLE announcements (
+                    id SERIAL PRIMARY KEY,
+                    admin_id INTEGER NOT NULL,
+                    title VARCHAR(500) NOT NULL,
+                    content TEXT NOT NULL,
+                    is_pinned INTEGER DEFAULT 0,
+                    pinned_at TIMESTAMP,
+                    status VARCHAR(50) DEFAULT 'active',
+                    publish_at TIMESTAMP,
+                    expires_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (admin_id) REFERENCES admins (id)
+                )
+            ''')
+            cursor.execute('CREATE INDEX idx_announcements_admin_id ON announcements(admin_id)')
+            cursor.execute('CREATE INDEX idx_announcements_is_pinned ON announcements(is_pinned)')
+            cursor.execute('CREATE INDEX idx_announcements_status ON announcements(status)')
+            cursor.execute('CREATE INDEX idx_announcements_created_at ON announcements(created_at)')
+            print('Created table: announcements')
+        
         conn.commit()
         conn.close()
         return
@@ -241,7 +320,12 @@ def init_database():
             level VARCHAR(50) DEFAULT 'bronze',
             posts_count INTEGER DEFAULT 0,
             balance REAL DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            is_banned INTEGER DEFAULT 0,
+            banned_at TIMESTAMP,
+            banned_by INTEGER,
+            ban_reason TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (banned_by) REFERENCES admins (id)
         )
     ''')
     
@@ -385,6 +469,51 @@ def init_database():
     cursor.execute('CREATE INDEX idx_tags_sort_order ON tags(sort_order)')
     cursor.execute('CREATE INDEX idx_post_tags_post_id ON post_tags(post_id)')
     cursor.execute('CREATE INDEX idx_post_tags_tag_id ON post_tags(tag_id)')
+    
+    cursor.execute('''
+        CREATE TABLE reports (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            target_type VARCHAR(50) NOT NULL,
+            target_id INTEGER NOT NULL,
+            reason VARCHAR(50) NOT NULL,
+            reason_detail TEXT,
+            status VARCHAR(50) DEFAULT 'pending',
+            handled_by INTEGER,
+            handled_at TIMESTAMP,
+            handled_note TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+            FOREIGN KEY (handled_by) REFERENCES admins (id)
+        )
+    ''')
+    cursor.execute('CREATE INDEX idx_reports_user_id ON reports(user_id)')
+    cursor.execute('CREATE INDEX idx_reports_target ON reports(target_type, target_id)')
+    cursor.execute('CREATE INDEX idx_reports_status ON reports(status)')
+    cursor.execute('CREATE INDEX idx_reports_created_at ON reports(created_at)')
+    print('Created table: reports')
+    
+    cursor.execute('''
+        CREATE TABLE announcements (
+            id SERIAL PRIMARY KEY,
+            admin_id INTEGER NOT NULL,
+            title VARCHAR(500) NOT NULL,
+            content TEXT NOT NULL,
+            is_pinned INTEGER DEFAULT 0,
+            pinned_at TIMESTAMP,
+            status VARCHAR(50) DEFAULT 'active',
+            publish_at TIMESTAMP,
+            expires_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (admin_id) REFERENCES admins (id)
+        )
+    ''')
+    cursor.execute('CREATE INDEX idx_announcements_admin_id ON announcements(admin_id)')
+    cursor.execute('CREATE INDEX idx_announcements_is_pinned ON announcements(is_pinned)')
+    cursor.execute('CREATE INDEX idx_announcements_status ON announcements(status)')
+    cursor.execute('CREATE INDEX idx_announcements_created_at ON announcements(created_at)')
+    print('Created table: announcements')
     
     conn.commit()
     conn.close()
