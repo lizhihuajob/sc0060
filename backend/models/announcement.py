@@ -50,7 +50,7 @@ class Announcement:
         from datetime import datetime
         now = datetime.now()
         
-        base_conditions = ['status = %s', '(publish_at IS NULL OR publish_at <= %s', '(expires_at IS NULL OR expires_at > %s)']
+        base_conditions = ['status = %s', '(publish_at IS NULL OR publish_at <= %s)', '(expires_at IS NULL OR expires_at > %s)']
         params = [Announcement.STATUS_ACTIVE, now, now]
         
         order_clause = 'is_pinned DESC, pinned_at DESC, created_at DESC'

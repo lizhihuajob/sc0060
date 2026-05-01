@@ -721,8 +721,8 @@ def create_report():
     
     target_type = data.get('target_type', '').strip()
     target_id = data.get('target_id')
-    reason = data.get('reason', '').strip()
-    reason_detail = data.get('reason_detail', '').strip()
+    reason = data.get('reason', '').strip() or data.get('reason_type', '').strip()
+    reason_detail = data.get('reason_detail', '').strip() or data.get('description', '').strip()
     
     valid_target_types = [Report.TYPE_POST, Report.TYPE_COMMENT, Report.TYPE_USER]
     if target_type not in valid_target_types:
