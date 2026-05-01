@@ -40,6 +40,12 @@ const routes = [
     meta: { title: '发布信息' }
   },
   {
+    path: '/edit-post/:id',
+    name: 'EditPost',
+    component: () => import('../views/EditPost.vue'),
+    meta: { title: '编辑信息', requiresAuth: true }
+  },
+  {
     path: '/post/:id',
     name: 'PostDetail',
     component: () => import('../views/PostDetail.vue'),

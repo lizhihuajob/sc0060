@@ -80,6 +80,7 @@ export const postApi = {
 export const userApi = {
   getProfile: () => apiClient.get('/user/profile'),
   getFavorites: (params) => apiClient.get('/user/favorites', { params }),
+  getEditLogs: (params) => apiClient.get('/user/edit-logs', { params }),
   recharge: (amount) => apiClient.post('/user/recharge', { amount }),
   upgrade: (targetLevel) => apiClient.post('/user/upgrade', { target_level: targetLevel }),
   uploadAvatar: (data) => apiClient.post('/user/avatar', data, {

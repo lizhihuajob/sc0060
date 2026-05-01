@@ -24,6 +24,7 @@ class Post:
         self.hidden_at = kwargs.get('hidden_at')
         self.hidden_reason = kwargs.get('hidden_reason')
         self.created_at = kwargs.get('created_at')
+        self.updated_at = kwargs.get('updated_at')
         self._author = None
         self._hidden_by_admin = None
     
@@ -133,6 +134,46 @@ class Post:
         )
         self.views_count += 1
         return True
+    
+    def update(self, title=None, content=None, view_permission=None, images=None, is_task=None):
+        from datetime import datetime
+        
+        updates = {}
+        if title is not None:
+            updates['title'] = title
+        if content is not None:
+            updates['content'] = content
+        if view_permission is not None:
+            updates['view_permission'] = view_permission
+        if images is not None:
+            updates['images'] = json.dumps(images) if images else None
+        if is_task is not None:
+            updates['is_task'] = is_task
+        
+        if not updates:
+            return False
+        
+        now = datetime.now()
+        updates['updated_at'] = now
+        
+        set_clause = ', '.join([f'{key} = %s' for key in updates.keys()])
+        params = list(updates.values()) + [self.id]
+        
+        query = f'UPDATE posts SET {set_clause} WHERE id = %s'
+        execute(query, params)
+        
+        for key, value in updates.items():
+            setattr(self, key, value)
+        
+        return True
+    
+    def get_old_data(self):
+        return {
+            'title': self.title,
+            'content': self.content,
+            'view_permission': self.view_permission,
+            'is_task': self.is_task
+        }
     
     def delete(self):
         execute('DELETE FROM posts WHERE id = %s', (self.id,))
@@ -382,7 +423,8 @@ class Post:
             'pin_expires_at': self.pin_expires_at,
             'status': self.status,
             'is_hidden': self.is_hidden(),
-            'created_at': self.created_at
+            'created_at': self.created_at,
+            'updated_at': self.updated_at
         }
         
         if include_admin_info:

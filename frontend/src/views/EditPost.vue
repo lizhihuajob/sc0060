@@ -1,11 +1,11 @@
 <template>
-  <div class="new-post-page">
+  <div class="edit-post-page">
     <div class="page-container">
       <div class="page-header">
-        <h1 class="page-title">发布信息</h1>
+        <h1 class="page-title">编辑信息</h1>
       </div>
 
-      <div class="form-card card">
+      <div class="form-card card" v-loading="loading">
         <el-form 
           ref="formRef" 
           :model="form" 
@@ -61,7 +61,20 @@
             </div>
           </el-form-item>
 
-          <el-form-item label="上传图片 (可选)">
+          <el-form-item label="当前图片">
+            <div class="current-images" v-if="currentImages.length > 0">
+              <div 
+                v-for="(img, index) in currentImages" 
+                :key="index"
+                class="current-image-item"
+              >
+                <img :src="`/uploads/${img}`" class="current-image" />
+              </div>
+            </div>
+            <el-empty v-else description="暂无图片" :image-size="60" />
+          </el-form-item>
+
+          <el-form-item label="上传新图片 (可选，将替换原有图片)">
             <el-upload
               v-model:file-list="fileList"
               action="#"
@@ -80,15 +93,27 @@
             </el-upload>
           </el-form-item>
 
+          <el-form-item label="修改原因 (可选)">
+            <el-input 
+              v-model="form.editReason" 
+              type="textarea" 
+              placeholder="请输入修改原因（可选）" 
+              :rows="3"
+              size="large"
+              maxlength="200"
+              show-word-limit
+            />
+          </el-form-item>
+
           <el-form-item>
             <el-button 
               type="primary" 
               size="large" 
               class="submit-btn"
-              :loading="loading"
+              :loading="submitting"
               @click="handleSubmit"
             >
-              发布信息
+              保存修改
             </el-button>
             <el-button 
               size="large" 
@@ -104,8 +129,8 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, onMounted, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { postApi } from '../services/api'
@@ -113,16 +138,24 @@ import { useUserStore } from '../stores/userStore'
 import MarkdownEditor from '../components/MarkdownEditor.vue'
 
 const router = useRouter()
+const route = useRoute()
 const { user } = useUserStore()
 const formRef = ref(null)
 const fileList = ref([])
-const loading = ref(false)
+const loading = ref(true)
+const submitting = ref(false)
+const postData = ref(null)
 
 const form = reactive({
   title: '',
   content: '',
   viewPermission: 'all',
-  isTask: 0
+  isTask: 0,
+  editReason: ''
+})
+
+const currentImages = computed(() => {
+  return postData.value?.images || []
 })
 
 const rules = {
@@ -136,6 +169,31 @@ const rules = {
   ]
 }
 
+const loadPost = async () => {
+  const postId = route.params.id
+  if (!postId) {
+    ElMessage.error('无效的帖子ID')
+    router.push('/my-posts')
+    return
+  }
+
+  try {
+    const response = await postApi.getById(postId)
+    if (response.data.success) {
+      postData.value = response.data.post
+      form.title = postData.value.title
+      form.content = postData.value.content
+      form.viewPermission = postData.value.view_permission
+      form.isTask = postData.value.is_task
+    }
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || '加载帖子失败')
+    router.push('/my-posts')
+  } finally {
+    loading.value = false
+  }
+}
+
 const handleExceed = (files, fileList) => {
   ElMessage.warning('最多只能上传 5 张图片')
 }
@@ -144,14 +202,14 @@ const handleSubmit = async () => {
   if (!formRef.value) return
   
   if (!user.value) {
-    ElMessage.warning('请先登录后再发布信息')
+    ElMessage.warning('请先登录后再编辑信息')
     router.push('/login')
     return
   }
   
   await formRef.value.validate(async (valid) => {
     if (valid) {
-      loading.value = true
+      submitting.value = true
       try {
         const formData = new FormData()
         formData.append('title', form.title)
@@ -159,32 +217,46 @@ const handleSubmit = async () => {
         formData.append('view_permission', form.viewPermission)
         formData.append('is_task', form.isTask)
         
+        if (form.editReason) {
+          formData.append('edit_reason', form.editReason)
+        }
+        
         fileList.value.forEach(file => {
           if (file.raw) {
             formData.append('images', file.raw)
           }
         })
         
-        const response = await postApi.create(formData)
+        const response = await postApi.update(postData.value.id, formData)
         if (response.data.success) {
           ElMessage.success(response.data.message)
           router.push('/my-posts')
         }
       } catch (error) {
-        ElMessage.error(error.response?.data?.message || '发布失败')
+        ElMessage.error(error.response?.data?.message || '更新失败')
       } finally {
-        loading.value = false
+        submitting.value = false
       }
     }
   })
 }
+
+onMounted(() => {
+  loadPost()
+})
 </script>
 
 <style scoped>
-.new-post-page {
+.edit-post-page {
   flex: 1;
   padding: 40px 0;
   background: var(--color-background);
+}
+
+.page-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 0 24px;
 }
 
 .page-header {
@@ -201,7 +273,6 @@ const handleSubmit = async () => {
 
 .form-card {
   padding: 32px;
-  max-width: 800px;
 }
 
 :deep(.el-form-item__label) {
@@ -261,6 +332,24 @@ const handleSubmit = async () => {
   font-weight: 500;
 }
 
+.current-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.current-image-item {
+  position: relative;
+}
+
+.current-image {
+  width: 100px;
+  height: 100px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
 .submit-btn {
   min-width: 120px;
   border-radius: var(--radius-md);
@@ -277,5 +366,23 @@ const handleSubmit = async () => {
   width: 100px;
   height: 100px;
   border-radius: var(--radius-md);
+}
+
+@media (max-width: 768px) {
+  .edit-post-page {
+    padding: 24px 0;
+  }
+  
+  .page-container {
+    padding: 0 16px;
+  }
+  
+  .page-title {
+    font-size: 24px;
+  }
+  
+  .form-card {
+    padding: 20px;
+  }
 }
 </style>
