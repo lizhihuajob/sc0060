@@ -364,7 +364,7 @@ class Post:
         return Config.VIEW_PERMISSIONS.get(self.view_permission, '所有用户')
     
     @staticmethod
-    def get_all_for_admin(limit=20, offset=0, status=None, keyword=None):
+    def get_all_for_admin(limit=20, offset=0, status=None, keyword=None, tag_id=None):
         base_conditions = ['1=1']
         params = []
         
@@ -377,17 +377,21 @@ class Post:
             keyword_param = f'%{keyword}%'
             params.extend([keyword_param, keyword_param])
         
+        if tag_id:
+            base_conditions.append('p.id IN (SELECT post_id FROM post_tags WHERE tag_id = %s)')
+            params.append(tag_id)
+        
         where_clause = ' AND '.join(base_conditions)
         
-        query = f'''SELECT * FROM posts WHERE {where_clause} 
-                    ORDER BY created_at DESC LIMIT %s OFFSET %s'''
+        query = f'''SELECT p.* FROM posts p WHERE {where_clause} 
+                    ORDER BY p.created_at DESC LIMIT %s OFFSET %s'''
         params.extend([limit, offset])
         
         rows = fetchall(query, params)
         return [Post(**row) for row in rows]
     
     @staticmethod
-    def count_for_admin(status=None, keyword=None):
+    def count_for_admin(status=None, keyword=None, tag_id=None):
         base_conditions = ['1=1']
         params = []
         
@@ -399,6 +403,10 @@ class Post:
             base_conditions.append('(title ILIKE %s OR content ILIKE %s)')
             keyword_param = f'%{keyword}%'
             params.extend([keyword_param, keyword_param])
+        
+        if tag_id:
+            base_conditions.append('id IN (SELECT post_id FROM post_tags WHERE tag_id = %s)')
+            params.append(tag_id)
         
         where_clause = ' AND '.join(base_conditions)
         
@@ -407,7 +415,58 @@ class Post:
         row = fetchone(query, params)
         return row['count'] if row else 0
     
-    def to_dict(self, include_author=False, include_admin_info=False):
+    @staticmethod
+    def get_total_views():
+        row = fetchone(
+            'SELECT SUM(views_count) as total FROM posts',
+            ()
+        )
+        return row['total'] if row and row['total'] else 0
+    
+    @staticmethod
+    def get_popular_posts(limit=10, offset=0):
+        query = '''
+            SELECT * FROM posts 
+            WHERE status = %s 
+            ORDER BY views_count DESC, created_at DESC 
+            LIMIT %s OFFSET %s
+        '''
+        rows = fetchall(query, (Post.STATUS_ACTIVE, limit, offset))
+        return [Post(**row) for row in rows]
+    
+    @staticmethod
+    def get_daily_views_stats(start_date, end_date):
+        query = '''
+            SELECT 
+                DATE(created_at) as date,
+                SUM(views_count) as total_views
+            FROM posts
+            WHERE DATE(created_at) BETWEEN %s AND %s
+            GROUP BY DATE(created_at)
+            ORDER BY date
+        '''
+        rows = fetchall(query, (start_date, end_date))
+        return rows if rows else []
+    
+    @staticmethod
+    def get_daily_posts_stats(start_date, end_date):
+        query = '''
+            SELECT 
+                DATE(created_at) as date,
+                COUNT(*) as count
+            FROM posts
+            WHERE DATE(created_at) BETWEEN %s AND %s
+            GROUP BY DATE(created_at)
+            ORDER BY date
+        '''
+        rows = fetchall(query, (start_date, end_date))
+        return rows if rows else []
+    
+    def get_tags(self):
+        from models.tag import Tag
+        return Tag.get_by_post(self.id)
+    
+    def to_dict(self, include_author=False, include_admin_info=False, include_tags=False):
         data = {
             'id': self.id,
             'user_id': self.user_id,
@@ -449,5 +508,9 @@ class Post:
                     'level': author.level,
                     'level_name': author.get_level_info()['name']
                 }
+        
+        if include_tags:
+            tags = self.get_tags()
+            data['tags'] = [tag.to_dict() for tag in tags]
         
         return data

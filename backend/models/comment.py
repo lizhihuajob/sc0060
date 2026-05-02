@@ -46,6 +46,28 @@ class Comment:
         )
         return row['cnt'] if row else 0
     
+    @staticmethod
+    def count_total():
+        row = fetchone(
+            'SELECT COUNT(*) as cnt FROM comments',
+            ()
+        )
+        return row['cnt'] if row else 0
+    
+    @staticmethod
+    def get_daily_stats(start_date, end_date):
+        query = '''
+            SELECT 
+                DATE(created_at) as date,
+                COUNT(*) as count
+            FROM comments
+            WHERE DATE(created_at) BETWEEN %s AND %s
+            GROUP BY DATE(created_at)
+            ORDER BY date
+        '''
+        rows = fetchall(query, (start_date, end_date))
+        return rows if rows else []
+    
     def get_author(self):
         if self._author is None:
             self._author = User.get_by_id(self.user_id)

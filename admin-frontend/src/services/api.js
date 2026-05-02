@@ -55,6 +55,7 @@ export const adminApi = {
   changePassword: (data) => apiClient.put('/password', data),
   
   getDashboard: () => apiClient.get('/dashboard'),
+  getTrendsStats: (params) => apiClient.get('/stats/trends', { params }),
   
   getUsers: (params) => apiClient.get('/users', { params }),
   getUser: (userId) => apiClient.get(`/users/${userId}`),
