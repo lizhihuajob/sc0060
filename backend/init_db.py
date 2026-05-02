@@ -319,6 +319,37 @@ def init_database():
         return
     
     cursor.execute('''
+        CREATE TABLE admins (
+            id SERIAL PRIMARY KEY,
+            username VARCHAR(255) UNIQUE NOT NULL,
+            password VARCHAR(255) NOT NULL,
+            email VARCHAR(255),
+            role VARCHAR(50) DEFAULT 'admin',
+            is_active INTEGER DEFAULT 1,
+            last_login_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    print('Created table: admins')
+    
+    cursor.execute('''
+        CREATE TABLE tags (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(100) NOT NULL,
+            slug VARCHAR(100) UNIQUE NOT NULL,
+            description TEXT,
+            color VARCHAR(20) DEFAULT '#0071e3',
+            icon VARCHAR(50),
+            sort_order INTEGER DEFAULT 0,
+            is_active INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    print('Created table: tags')
+    
+    cursor.execute('''
         CREATE TABLE users (
             id SERIAL PRIMARY KEY,
             username VARCHAR(255) UNIQUE NOT NULL,
@@ -336,6 +367,7 @@ def init_database():
             FOREIGN KEY (banned_by) REFERENCES admins (id)
         )
     ''')
+    print('Created table: users')
     
     cursor.execute('''
         CREATE TABLE posts (
@@ -359,6 +391,7 @@ def init_database():
             FOREIGN KEY (user_id) REFERENCES users (id)
         )
     ''')
+    print('Created table: posts')
     
     cursor.execute('''
         CREATE TABLE transactions (
@@ -371,6 +404,7 @@ def init_database():
             FOREIGN KEY (user_id) REFERENCES users (id)
         )
     ''')
+    print('Created table: transactions')
     
     cursor.execute('''
         CREATE TABLE comments (
@@ -387,6 +421,7 @@ def init_database():
             FOREIGN KEY (reply_to_user_id) REFERENCES users (id)
         )
     ''')
+    print('Created table: comments')
     
     cursor.execute('''
         CREATE TABLE favorites (
@@ -399,20 +434,7 @@ def init_database():
             UNIQUE(user_id, post_id)
         )
     ''')
-    
-    cursor.execute('''
-        CREATE TABLE admins (
-            id SERIAL PRIMARY KEY,
-            username VARCHAR(255) UNIQUE NOT NULL,
-            password VARCHAR(255) NOT NULL,
-            email VARCHAR(255),
-            role VARCHAR(50) DEFAULT 'admin',
-            is_active INTEGER DEFAULT 1,
-            last_login_at TIMESTAMP,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
+    print('Created table: favorites')
     
     cursor.execute('''
         CREATE TABLE edit_logs (
@@ -433,23 +455,7 @@ def init_database():
             FOREIGN KEY (user_id) REFERENCES users (id)
         )
     ''')
-    
-    cursor.execute('CREATE INDEX idx_edit_logs_created_at ON edit_logs(created_at)')
-    
-    cursor.execute('''
-        CREATE TABLE tags (
-            id SERIAL PRIMARY KEY,
-            name VARCHAR(100) NOT NULL,
-            slug VARCHAR(100) UNIQUE NOT NULL,
-            description TEXT,
-            color VARCHAR(20) DEFAULT '#0071e3',
-            icon VARCHAR(50),
-            sort_order INTEGER DEFAULT 0,
-            is_active INTEGER DEFAULT 1,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
+    print('Created table: edit_logs')
     
     cursor.execute('''
         CREATE TABLE post_tags (
@@ -462,25 +468,7 @@ def init_database():
             UNIQUE(post_id, tag_id)
         )
     ''')
-    
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_user_id ON posts(user_id)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_views_count ON posts(views_count)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_status ON posts(status)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_comments_post_id ON comments(post_id)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_comments_user_id ON comments(user_id)')
-    cursor.execute('CREATE INDEX idx_favorites_user_id ON favorites(user_id)')
-    cursor.execute('CREATE INDEX idx_favorites_post_id ON favorites(post_id)')
-    cursor.execute('CREATE INDEX idx_admins_username ON admins(username)')
-    cursor.execute('CREATE INDEX idx_edit_logs_post_id ON edit_logs(post_id)')
-    cursor.execute('CREATE INDEX idx_edit_logs_user_id ON edit_logs(user_id)')
-    cursor.execute('CREATE INDEX idx_edit_logs_created_at ON edit_logs(created_at)')
-    cursor.execute('CREATE INDEX idx_tags_slug ON tags(slug)')
-    cursor.execute('CREATE INDEX idx_tags_is_active ON tags(is_active)')
-    cursor.execute('CREATE INDEX idx_tags_sort_order ON tags(sort_order)')
-    cursor.execute('CREATE INDEX idx_post_tags_post_id ON post_tags(post_id)')
-    cursor.execute('CREATE INDEX idx_post_tags_tag_id ON post_tags(tag_id)')
+    print('Created table: post_tags')
     
     cursor.execute('''
         CREATE TABLE reports (
@@ -526,6 +514,26 @@ def init_database():
     cursor.execute('CREATE INDEX idx_announcements_status ON announcements(status)')
     cursor.execute('CREATE INDEX idx_announcements_created_at ON announcements(created_at)')
     print('Created table: announcements')
+    
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_admins_username ON admins(username)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_tags_slug ON tags(slug)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_tags_is_active ON tags(is_active)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_tags_sort_order ON tags(sort_order)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_user_id ON posts(user_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_views_count ON posts(views_count)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_status ON posts(status)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_comments_post_id ON comments(post_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_comments_user_id ON comments(user_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_favorites_user_id ON favorites(user_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_favorites_post_id ON favorites(post_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_edit_logs_post_id ON edit_logs(post_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_edit_logs_user_id ON edit_logs(user_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_edit_logs_created_at ON edit_logs(created_at)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_post_tags_post_id ON post_tags(post_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_post_tags_tag_id ON post_tags(tag_id)')
+    print('Created indexes')
     
     conn.commit()
     conn.close()
