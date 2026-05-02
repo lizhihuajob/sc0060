@@ -46,6 +46,7 @@ ul, ol {
   --color-border: #d2d2d7;
   --color-background: #f5f5f7;
   --color-white: #ffffff;
+  --color-bg-card: #ffffff;
   --radius-sm: 6px;
   --radius-md: 12px;
   --radius-lg: 18px;

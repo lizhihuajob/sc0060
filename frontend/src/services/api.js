@@ -104,4 +104,8 @@ export const announcementApi = {
   getById: (id) => apiClient.get(`/announcements/${id}`)
 }
 
+export const tagApi = {
+  getAll: () => apiClient.get('/tags')
+}
+
 export default apiClient

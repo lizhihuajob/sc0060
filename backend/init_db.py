@@ -311,6 +311,26 @@ def init_database():
     
     print('Indexes created/verified')
     
+    print('Initializing default tags...')
+    
+    default_tags = [
+        {'name': '紧急', 'slug': 'urgent', 'description': '需要紧急处理的事项', 'color': '#FF3B30', 'sort_order': 1},
+        {'name': '招聘', 'slug': 'recruitment', 'description': '招聘信息相关', 'color': '#FF9500', 'sort_order': 2},
+        {'name': '活动', 'slug': 'activity', 'description': '活动通知相关', 'color': '#30D158', 'sort_order': 3},
+        {'name': '公告', 'slug': 'announcement', 'description': '正式公告通知', 'color': '#007AFF', 'sort_order': 4},
+        {'name': '求助', 'slug': 'help', 'description': '寻求帮助的请求', 'color': '#AF52DE', 'sort_order': 5},
+        {'name': '分享', 'slug': 'share', 'description': '经验或资源分享', 'color': '#5AC8FA', 'sort_order': 6},
+    ]
+    
+    for tag in default_tags:
+        cursor.execute('''
+            INSERT INTO tags (name, slug, description, color, sort_order, is_active, created_at, updated_at)
+            SELECT %s, %s, %s, %s, %s, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+            WHERE NOT EXISTS (SELECT 1 FROM tags WHERE slug = %s)
+        ''', (tag['name'], tag['slug'], tag['description'], tag['color'], tag['sort_order'], tag['slug']))
+        if cursor.rowcount > 0:
+            print(f'Added default tag: {tag["name"]}')
+    
     conn.commit()
     conn.close()
     print('Database initialization completed!')

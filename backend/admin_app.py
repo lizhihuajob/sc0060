@@ -586,6 +586,7 @@ def get_trends_stats():
     
     registration_stats = User.get_daily_registration_stats(start_date, end_date)
     posts_stats = Post.get_daily_posts_stats(start_date, end_date)
+    views_stats = Post.get_daily_views_stats(start_date, end_date)
     announcement_stats = Announcement.get_daily_stats(start_date, end_date)
     comment_stats = Comment.get_daily_stats(start_date, end_date)
     
@@ -597,11 +598,13 @@ def get_trends_stats():
     
     registration_dict = {str(row['date']): row['count'] for row in registration_stats}
     posts_dict = {str(row['date']): row['count'] for row in posts_stats}
+    views_dict = {str(row['date']): row['total_views'] for row in views_stats}
     announcement_dict = {str(row['date']): row['count'] for row in announcement_stats}
     comment_dict = {str(row['date']): row['count'] for row in comment_stats}
     
     registration_data = []
     posts_data = []
+    views_data = []
     announcement_data = []
     comment_data = []
     
@@ -613,6 +616,10 @@ def get_trends_stats():
         posts_data.append({
             'date': date_str,
             'count': posts_dict.get(date_str, 0)
+        })
+        views_data.append({
+            'date': date_str,
+            'count': views_dict.get(date_str, 0)
         })
         announcement_data.append({
             'date': date_str,
@@ -630,6 +637,7 @@ def get_trends_stats():
             'end_date': str(end_date),
             'registration': registration_data,
             'posts': posts_data,
+            'views': views_data,
             'announcements': announcement_data,
             'comments': comment_data
         }

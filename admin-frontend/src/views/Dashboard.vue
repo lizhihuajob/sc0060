@@ -90,6 +90,18 @@
         <div class="chart-card">
           <div class="card-header">
             <h3 class="card-title">
+              <el-icon><View /></el-icon>
+              浏览量趋势
+            </h3>
+          </div>
+          <div class="chart-container">
+            <v-chart class="chart" :option="viewsChartOption" autoresize />
+          </div>
+        </div>
+        
+        <div class="chart-card">
+          <div class="card-header">
+            <h3 class="card-title">
               <el-icon><TrendCharts /></el-icon>
               内容发布趋势
             </h3>
@@ -304,6 +316,7 @@ const popularPosts = ref([])
 const trendsData = ref({
   registration: [],
   posts: [],
+  views: [],
   comments: [],
   announcements: []
 })
@@ -320,7 +333,8 @@ const defaultChartColors = {
   posts: '#409EFF',
   registration: '#67C23A',
   comments: '#E6A23C',
-  announcements: '#909399'
+  announcements: '#909399',
+  views: '#6366F1'
 }
 
 const formatNumber = (num) => {
@@ -440,6 +454,14 @@ const generateChartOption = (data, title, color) => {
   }
 }
 
+const viewsChartOption = computed(() => {
+  return generateChartOption(
+    trendsData.value.views, 
+    '浏览量', 
+    defaultChartColors.views
+  )
+})
+
 const postsChartOption = computed(() => {
   return generateChartOption(
     trendsData.value.posts, 
@@ -496,6 +518,21 @@ const loadDashboard = async () => {
   }
 }
 
+const getDefaultDateRange = () => {
+  const endDate = new Date()
+  const startDate = new Date()
+  startDate.setDate(startDate.getDate() - 30)
+  
+  const formatDate = (date) => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+  
+  return [formatDate(startDate), formatDate(endDate)]
+}
+
 const loadTrendsData = async () => {
   try {
     const params = {}
@@ -509,6 +546,7 @@ const loadTrendsData = async () => {
       const data = response.data.trends
       trendsData.value.registration = data.registration || []
       trendsData.value.posts = data.posts || []
+      trendsData.value.views = data.views || []
       trendsData.value.comments = data.comments || []
       trendsData.value.announcements = data.announcements || []
     }
@@ -528,6 +566,7 @@ const refreshData = () => {
 }
 
 onMounted(() => {
+  dateRange.value = getDefaultDateRange()
   loadDashboard()
   loadTrendsData()
 })

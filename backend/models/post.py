@@ -290,7 +290,7 @@ class Post:
         return row['count'] if row else 0
     
     @staticmethod
-    def search_posts(current_user=None, keyword=None, post_type=None, sort_by='latest', limit=20, offset=0):
+    def search_posts(current_user=None, keyword=None, post_type=None, sort_by='latest', tag_id=None, limit=20, offset=0):
         base_conditions = ['(is_pinned = 0 OR is_pinned IS NULL)', 'status = %s']
         params = [Post.STATUS_ACTIVE]
         
@@ -333,6 +333,10 @@ class Post:
             elif post_type == 'task':
                 base_conditions.append('is_task = %s')
                 params.append(1)
+        
+        if tag_id:
+            base_conditions.append('id IN (SELECT post_id FROM post_tags WHERE tag_id = %s)')
+            params.append(tag_id)
         
         where_clause = ' AND '.join(base_conditions) if base_conditions else '1=1'
         
