@@ -138,32 +138,14 @@
         </div>
 
         <div class="comments-list" v-if="comments.length > 0">
-          <div v-for="comment in comments" :key="comment.id" class="comment-item">
-            <div class="comment-header">
-              <div class="comment-avatar">
-                <img v-if="comment.author?.avatar" :src="`/uploads/${comment.author?.avatar}`" alt="头像" class="avatar-img" />
-                <el-icon v-else><User /></el-icon>
-              </div>
-              <div class="comment-info">
-                <div class="comment-author">
-                  <span class="author-name">{{ comment.author?.username }}</span>
-                  <span class="level-badge" :class="comment.author?.level">{{ comment.author?.level_name }}</span>
-                </div>
-                <span class="comment-time">{{ formatTime(comment.created_at) }}</span>
-              </div>
-              <button 
-                v-if="currentUser && comment.user_id === currentUser.id"
-                class="delete-comment-btn" 
-                @click="deleteComment(comment)"
-                title="删除留言"
-              >
-                <el-icon><Delete /></el-icon>
-              </button>
-            </div>
-            <div class="comment-content">
-              <p>{{ comment.content }}</p>
-            </div>
-          </div>
+          <CommentItem
+            v-for="comment in comments"
+            :key="comment.id"
+            :comment="comment"
+            :current-user="currentUser"
+            @delete="deleteComment"
+            @reply="submitReply"
+          />
         </div>
 
         <div class="empty-comments" v-else-if="!loadingComments">
@@ -198,6 +180,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, View, Loading, ChatDotRound, User, Delete, Warning } from '@element-plus/icons-vue'
 import { postApi, authApi, reportApi } from '../services/api'
 import MarkdownRenderer from '../components/MarkdownRenderer.vue'
+import CommentItem from '../components/CommentItem.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -266,6 +249,80 @@ const submitComment = async () => {
   }
 }
 
+const findAndRemoveComment = (commentList, commentId) => {
+  for (let i = 0; i < commentList.length; i++) {
+    if (commentList[i].id === commentId) {
+      commentList.splice(i, 1)
+      return true
+    }
+    if (commentList[i].replies && commentList[i].replies.length > 0) {
+      if (findAndRemoveComment(commentList[i].replies, commentId)) {
+        return true
+      }
+    }
+  }
+  return false
+}
+
+const findAndAddReply = (commentList, parentId, newReply) => {
+  for (let i = 0; i < commentList.length; i++) {
+    if (commentList[i].id === parentId) {
+      if (!commentList[i].replies) {
+        commentList[i].replies = []
+      }
+      commentList[i].replies.push(newReply)
+      return true
+    }
+    if (commentList[i].replies && commentList[i].replies.length > 0) {
+      if (findAndAddReply(commentList[i].replies, parentId, newReply)) {
+        return true
+      }
+    }
+  }
+  return false
+}
+
+const submitReply = async (replyData) => {
+  if (!replyData.content.trim() || submitting.value) return
+  
+  submitting.value = true
+  try {
+    const response = await postApi.createComment(route.params.id, {
+      content: replyData.content,
+      parent_id: replyData.parentId,
+      reply_to_user_id: replyData.replyToUserId
+    })
+    
+    if (response.data.success) {
+      ElMessage.success('回复成功')
+      const newReply = response.data.comment
+      
+      let added = false
+      for (let i = 0; i < comments.value.length; i++) {
+        if (comments.value[i].id === replyData.parentId) {
+          if (!comments.value[i].replies) {
+            comments.value[i].replies = []
+          }
+          comments.value[i].replies.push(newReply)
+          added = true
+          break
+        }
+      }
+      
+      if (!added) {
+        findAndAddReply(comments.value, replyData.parentId, newReply)
+      }
+      
+      commentsCount.value++
+    }
+  } catch (error) {
+    console.error('提交回复失败:', error)
+    ElMessage.error('回复失败，请稍后重试')
+  } finally {
+    submitting.value = false
+  }
+}
+
 const deleteComment = async (comment) => {
   try {
     await ElMessageBox.confirm(
@@ -281,7 +338,7 @@ const deleteComment = async (comment) => {
     const response = await postApi.deleteComment(route.params.id, comment.id)
     if (response.data.success) {
       ElMessage.success('删除成功')
-      comments.value = comments.value.filter(c => c.id !== comment.id)
+      findAndRemoveComment(comments.value, comment.id)
       commentsCount.value--
     }
   } catch (error) {

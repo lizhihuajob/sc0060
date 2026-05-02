@@ -22,7 +22,35 @@
   --gradient-dark: linear-gradient(135deg, #1d1d1f 0%, #424245 100%);
   --gradient-pinned: linear-gradient(135deg, #FF2D55 0%, #FF3B30 100%);
   --gradient-glow: linear-gradient(90deg, rgba(0,122,255,0.1) 0%, rgba(88,86,214,0.1) 50%, rgba(0,122,255,0.1) 100%);
+}
+
+html.dark {
+  --color-primary: #2997FF;
+  --color-primary-hover: #40A0FF;
+  --color-secondary: #86868b;
+  --color-success: #30D158;
+  --color-warning: #FFD60A;
+  --color-danger: #FF453A;
+  --color-text: #f5f5f7;
+  --color-text-secondary: #86868b;
+  --color-text-tertiary: #636366;
+  --color-border: #3a3a3c;
+  --color-border-light: #2c2c2e;
+  --color-background: #000000;
+  --color-background-secondary: #1c1c1e;
+  --color-card: #1c1c1e;
+  --color-navbar: rgba(28, 28, 30, 0.72);
+  --color-overlay: rgba(0, 0, 0, 0.8);
   
+  --gradient-primary: linear-gradient(135deg, #2997FF 0%, #5E5CE6 100%);
+  --gradient-secondary: linear-gradient(135deg, #5AC8FA 0%, #2997FF 100%);
+  --gradient-gold: linear-gradient(135deg, #FFD60A 0%, #FF9F0A 100%);
+  --gradient-dark: linear-gradient(135deg, #1c1c1e 0%, #3a3a3c 100%);
+  --gradient-pinned: linear-gradient(135deg, #FF375F 0%, #FF453A 100%);
+  --gradient-glow: linear-gradient(90deg, rgba(41,151,255,0.1) 0%, rgba(94,92,230,0.1) 50%, rgba(41,151,255,0.1) 100%);
+}
+
+:root {
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
   --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.06);
   --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.08);
@@ -112,6 +140,14 @@ html, body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.3);
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 a {

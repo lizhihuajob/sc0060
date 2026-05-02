@@ -171,7 +171,7 @@ def get_post_detail(post_id):
         return jsonify({'success': False, 'message': '您没有权限查看该公告'}), 403
     
     post.increment_views()
-    comments = Comment.get_by_post(post_id)
+    comments = Comment.get_by_post_with_replies(post_id, limit=20)
     comments_count = Comment.count_by_post(post_id)
     
     post_dict = post.to_dict(include_author=True)
@@ -183,7 +183,7 @@ def get_post_detail(post_id):
     return jsonify({
         'success': True,
         'post': post_dict,
-        'comments': [c.to_dict(include_author=True) for c in comments],
+        'comments': [c.to_dict(include_author=True, include_replies=True) for c in comments],
         'comments_count': comments_count
     })
 
@@ -441,11 +441,11 @@ def get_post_comments(post_id):
     per_page = request.args.get('per_page', 20, type=int)
     offset = (page - 1) * per_page
     
-    comments = Comment.get_by_post(post_id, limit=per_page, offset=offset)
+    comments = Comment.get_by_post_with_replies(post_id, limit=per_page, offset=offset)
     
     return jsonify({
         'success': True,
-        'comments': [c.to_dict(include_author=True) for c in comments],
+        'comments': [c.to_dict(include_author=True, include_replies=True) for c in comments],
         'page': page,
         'per_page': per_page,
         'has_more': len(comments) >= per_page
@@ -468,11 +468,24 @@ def create_comment(post_id):
     
     data = request.get_json()
     content = data.get('content', '').strip()
+    parent_id = data.get('parent_id')
+    reply_to_user_id = data.get('reply_to_user_id')
     
     if not content:
         return jsonify({'success': False, 'message': '留言内容不能为空'}), 400
     
-    comment = Comment.create(post_id, user.id, content)
+    if parent_id:
+        parent_comment = Comment.get_by_id(parent_id)
+        if not parent_comment or parent_comment.post_id != post_id:
+            return jsonify({'success': False, 'message': '回复的评论不存在'}), 400
+    
+    comment = Comment.create(
+        post_id, 
+        user.id, 
+        content, 
+        parent_id=parent_id,
+        reply_to_user_id=reply_to_user_id
+    )
     
     return jsonify({
         'success': True,
