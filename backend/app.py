@@ -9,7 +9,7 @@ from config import Config
 from init_db import init_database
 init_database()
 
-from models import User, Post, Transaction, Comment, Favorite, Report, Announcement
+from models import User, Post, Transaction, Comment, Favorite, Report, Announcement, Tag, PostTag
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -48,6 +48,14 @@ def get_config():
         'user_levels': Config.USER_LEVELS,
         'view_permissions': Config.VIEW_PERMISSIONS,
         'pin_config': Config.PIN_CONFIG
+    })
+
+@app.route('/api/tags', methods=['GET'])
+def get_tags():
+    tags = Tag.get_all(include_inactive=False)
+    return jsonify({
+        'success': True,
+        'tags': [tag.to_dict() for tag in tags]
     })
 
 @app.route('/api/auth/me', methods=['GET'])
@@ -122,10 +130,11 @@ def get_posts():
     keyword = request.args.get('keyword', '').strip()
     post_type = request.args.get('type', 'all')
     sort_by = request.args.get('sort', 'latest')
+    tag_id = request.args.get('tag_id', None, type=int)
     
     current_user = get_current_user()
     
-    if not keyword and post_type == 'all' and sort_by == 'latest':
+    if not keyword and post_type == 'all' and sort_by == 'latest' and not tag_id:
         posts = Post.get_visible_posts(current_user, limit=per_page, offset=offset)
     else:
         search_type = None if post_type == 'all' else post_type
@@ -134,6 +143,7 @@ def get_posts():
             keyword=keyword if keyword else None,
             post_type=search_type,
             sort_by=sort_by,
+            tag_id=tag_id,
             limit=per_page,
             offset=offset
         )
@@ -144,7 +154,7 @@ def get_posts():
     
     posts_data = []
     for post in posts:
-        post_dict = post.to_dict(include_author=True)
+        post_dict = post.to_dict(include_author=True, include_tags=True)
         post_dict['is_favorited'] = post.id in favorited_ids
         posts_data.append(post_dict)
     
@@ -174,7 +184,7 @@ def get_post_detail(post_id):
     comments = Comment.get_by_post_with_replies(post_id, limit=20)
     comments_count = Comment.count_by_post(post_id)
     
-    post_dict = post.to_dict(include_author=True)
+    post_dict = post.to_dict(include_author=True, include_tags=True)
     if current_user:
         post_dict['is_favorited'] = Favorite.is_favorited(current_user.id, post_id)
     else:
@@ -199,7 +209,7 @@ def get_my_posts():
     
     return jsonify({
         'success': True,
-        'posts': [post.to_dict(include_author=True) for post in posts],
+        'posts': [post.to_dict(include_author=True, include_tags=True) for post in posts],
         'page': page,
         'per_page': per_page,
         'has_more': len(posts) >= per_page
@@ -220,6 +230,20 @@ def create_post():
     content = request.form.get('content', '').strip()
     view_permission = request.form.get('view_permission', 'all')
     is_task = int(request.form.get('is_task', 0))
+    
+    tag_ids_str = request.form.get('tag_ids', '')
+    tag_ids = []
+    if tag_ids_str:
+        try:
+            tag_ids = [int(tid.strip()) for tid in tag_ids_str.split(',') if tid.strip()]
+        except:
+            tag_ids = []
+    
+    valid_tag_ids = []
+    for tag_id in tag_ids:
+        tag = Tag.get_by_id(tag_id)
+        if tag and tag.is_active:
+            valid_tag_ids.append(tag_id)
     
     if not title or not content:
         return jsonify({'success': False, 'message': '标题和内容不能为空'}), 400
@@ -244,12 +268,15 @@ def create_post():
         is_task=is_task
     )
     
+    if valid_tag_ids:
+        PostTag.add_tags_to_post(post.id, valid_tag_ids)
+    
     user.increment_posts_count()
     
     return jsonify({
         'success': True,
         'message': '任务发布成功！' if is_task else '公告发布成功！',
-        'post': post.to_dict(include_author=True)
+        'post': post.to_dict(include_author=True, include_tags=True)
     })
 
 @app.route('/api/posts/<int:post_id>', methods=['PUT'])
@@ -275,6 +302,21 @@ def update_post(post_id):
     is_task = request.form.get('is_task')
     edit_reason = request.form.get('edit_reason', '').strip()
     
+    tag_ids_str = request.form.get('tag_ids', None)
+    tags_updated = False
+    if tag_ids_str is not None:
+        tags_updated = True
+        try:
+            tag_ids = [int(tid.strip()) for tid in tag_ids_str.split(',') if tid.strip()]
+        except:
+            tag_ids = []
+        
+        valid_tag_ids = []
+        for tag_id in tag_ids:
+            tag = Tag.get_by_id(tag_id)
+            if tag and tag.is_active:
+                valid_tag_ids.append(tag_id)
+    
     updates = {}
     if title:
         updates['title'] = title
@@ -287,9 +329,6 @@ def update_post(post_id):
             updates['is_task'] = int(is_task)
         except ValueError:
             pass
-    
-    if not updates:
-        return jsonify({'success': False, 'message': '没有需要更新的内容'}), 400
     
     old_data = post.get_old_data()
     
@@ -309,14 +348,21 @@ def update_post(post_id):
     if new_images is not None:
         updates['images'] = new_images
     
+    if not updates and not tags_updated:
+        return jsonify({'success': False, 'message': '没有需要更新的内容'}), 400
+    
+    if updates:
+        post.update(**updates)
+    
+    if tags_updated:
+        PostTag.set_post_tags(post.id, valid_tag_ids)
+    
     new_data = {
         'title': updates.get('title', old_data['title']),
         'content': updates.get('content', old_data['content']),
         'view_permission': updates.get('view_permission', old_data['view_permission']),
         'is_task': updates.get('is_task', old_data['is_task'])
     }
-    
-    post.update(**updates)
     
     EditLog.create(
         post_id=post.id,
@@ -329,7 +375,7 @@ def update_post(post_id):
     return jsonify({
         'success': True,
         'message': '更新成功！',
-        'post': post.to_dict(include_author=True)
+        'post': post.to_dict(include_author=True, include_tags=True)
     })
 
 @app.route('/api/posts/<int:post_id>', methods=['DELETE'])

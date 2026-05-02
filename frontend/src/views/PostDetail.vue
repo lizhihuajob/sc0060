@@ -22,6 +22,17 @@
 
         <h1 class="post-title">{{ post.title }}</h1>
 
+        <div v-if="post.tags && post.tags.length > 0" class="post-tags">
+          <span 
+            v-for="tag in post.tags" 
+            :key="tag.id"
+            class="post-tag"
+            :style="{ backgroundColor: tag.color || '#0071e3', color: '#fff' }"
+          >
+            {{ tag.name }}
+          </span>
+        </div>
+
         <div class="post-content">
           <MarkdownRenderer :content="post.content" />
         </div>
@@ -513,8 +524,24 @@ onMounted(() => {
   font-size: 28px;
   font-weight: 600;
   line-height: 1.3;
-  margin: 0 0 24px;
+  margin: 0 0 16px;
   color: var(--color-text);
+}
+
+.post-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.post-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
 }
 
 .post-content {

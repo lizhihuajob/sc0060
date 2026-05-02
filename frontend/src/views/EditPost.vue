@@ -38,6 +38,35 @@
             />
           </el-form-item>
 
+          <el-form-item label="标签">
+            <el-select
+              v-model="selectedTagIds"
+              multiple
+              placeholder="请选择标签（可选）"
+              size="large"
+              style="width: 100%;"
+              collapse-tags
+            >
+              <el-option
+                v-for="tag in tagsList"
+                :key="tag.id"
+                :label="tag.name"
+                :value="tag.id"
+              >
+                <div class="tag-option">
+                  <span 
+                    class="tag-color-dot" 
+                    :style="{ backgroundColor: tag.color || '#0071e3' }"
+                  ></span>
+                  <span class="tag-name">{{ tag.name }}</span>
+                </div>
+              </el-option>
+            </el-select>
+            <div class="form-tip">
+              <span class="tip-text">选择合适的标签可以让更多用户发现您的内容</span>
+            </div>
+          </el-form-item>
+
           <el-form-item label="可见范围" prop="viewPermission">
             <el-select v-model="form.viewPermission" placeholder="选择可见范围" size="large" style="width: 100%;">
               <el-option label="所有用户" value="all" />
@@ -133,7 +162,7 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { postApi } from '../services/api'
+import { postApi, tagApi } from '../services/api'
 import { useUserStore } from '../stores/userStore'
 import MarkdownEditor from '../components/MarkdownEditor.vue'
 
@@ -145,6 +174,8 @@ const fileList = ref([])
 const loading = ref(true)
 const submitting = ref(false)
 const postData = ref(null)
+const tagsList = ref([])
+const selectedTagIds = ref([])
 
 const form = reactive({
   title: '',
@@ -169,6 +200,17 @@ const rules = {
   ]
 }
 
+const loadTags = async () => {
+  try {
+    const response = await tagApi.getAll()
+    if (response.data.success) {
+      tagsList.value = response.data.tags || []
+    }
+  } catch (error) {
+    console.error('加载标签列表失败:', error)
+  }
+}
+
 const loadPost = async () => {
   const postId = route.params.id
   if (!postId) {
@@ -185,6 +227,10 @@ const loadPost = async () => {
       form.content = postData.value.content
       form.viewPermission = postData.value.view_permission
       form.isTask = postData.value.is_task
+      
+      if (postData.value.tags && postData.value.tags.length > 0) {
+        selectedTagIds.value = postData.value.tags.map(tag => tag.id)
+      }
     }
   } catch (error) {
     ElMessage.error(error.response?.data?.message || '加载帖子失败')
@@ -221,6 +267,12 @@ const handleSubmit = async () => {
           formData.append('edit_reason', form.editReason)
         }
         
+        if (selectedTagIds.value && selectedTagIds.value.length > 0) {
+          formData.append('tag_ids', selectedTagIds.value.join(','))
+        } else {
+          formData.append('tag_ids', '')
+        }
+        
         fileList.value.forEach(file => {
           if (file.raw) {
             formData.append('images', file.raw)
@@ -241,7 +293,8 @@ const handleSubmit = async () => {
   })
 }
 
-onMounted(() => {
+onMounted(async () => {
+  await loadTags()
   loadPost()
 })
 </script>
@@ -366,6 +419,28 @@ onMounted(() => {
   width: 100px;
   height: 100px;
   border-radius: var(--radius-md);
+}
+
+.tag-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tag-color-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tag-name {
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.form-tip {
+  margin-top: 8px;
 }
 
 @media (max-width: 768px) {

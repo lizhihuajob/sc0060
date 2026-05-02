@@ -83,6 +83,20 @@ class User:
         return row['count'] if row else 0
     
     @staticmethod
+    def get_daily_registration_stats(start_date, end_date):
+        query = '''
+            SELECT 
+                DATE(created_at) as date,
+                COUNT(*) as count
+            FROM users
+            WHERE DATE(created_at) BETWEEN %s AND %s
+            GROUP BY DATE(created_at)
+            ORDER BY date
+        '''
+        rows = fetchall(query, (start_date, end_date))
+        return rows if rows else []
+    
+    @staticmethod
     def get_total_recharge():
         from models.transaction import Transaction
         row = fetchone(

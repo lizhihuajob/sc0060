@@ -26,6 +26,20 @@
           <el-option label="正常" value="active" />
           <el-option label="已下架" value="hidden" />
         </el-select>
+        <el-select
+          v-model="filterTagId"
+          placeholder="标签筛选"
+          clearable
+          @change="handleSearch"
+          style="width: 150px;"
+        >
+          <el-option 
+            v-for="tag in tagsList" 
+            :key="tag.id" 
+            :label="tag.name" 
+            :value="tag.id" 
+          />
+        </el-select>
         <el-button type="primary" @click="handleSearch">
           <el-icon><Search /></el-icon>
           搜索
@@ -54,6 +68,21 @@
             <span class="type-badge" :class="row.is_task ? 'task' : 'notice'">
               {{ row.is_task ? '任务' : '公告' }}
             </span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="tags" label="标签" min-width="150">
+          <template #default="{ row }">
+            <div class="tags-container">
+              <el-tag 
+                v-for="tag in row.tags" 
+                :key="tag.id" 
+                size="small"
+                :style="{ backgroundColor: tag.color + '20', color: tag.color, borderColor: tag.color + '40' }"
+              >
+                {{ tag.name }}
+              </el-tag>
+              <span v-if="!row.tags || row.tags.length === 0" class="no-tags">-</span>
+            </div>
           </template>
         </el-table-column>
         <el-table-column prop="views_count" label="浏览量" width="80" align="center">
@@ -150,11 +179,13 @@ import { adminApi } from '../services/api'
 const loading = ref(false)
 const processing = ref(false)
 const posts = ref([])
+const tagsList = ref([])
 const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(10)
 const searchKeyword = ref('')
 const filterStatus = ref('')
+const filterTagId = ref(null)
 const hideDialogVisible = ref(false)
 const currentPost = ref(null)
 const hideReason = ref('')
@@ -162,6 +193,17 @@ const hideReason = ref('')
 const formatTime = (time) => {
   if (!time) return '-'
   return time.replace(' GMT', '')
+}
+
+const loadTags = async () => {
+  try {
+    const response = await adminApi.getAllTags()
+    if (response.data.success) {
+      tagsList.value = response.data.tags || []
+    }
+  } catch (error) {
+    console.error('加载标签列表失败', error)
+  }
 }
 
 const loadPosts = async () => {
@@ -178,6 +220,10 @@ const loadPosts = async () => {
     
     if (filterStatus.value) {
       params.status = filterStatus.value
+    }
+    
+    if (filterTagId.value) {
+      params.tag_id = filterTagId.value
     }
     
     const response = await adminApi.getPosts(params)
@@ -201,6 +247,7 @@ const handleSearch = () => {
 const resetSearch = () => {
   searchKeyword.value = ''
   filterStatus.value = ''
+  filterTagId.value = null
   currentPage.value = 1
   loadPosts()
 }
@@ -265,6 +312,7 @@ const handleUnhide = async (row) => {
 }
 
 onMounted(() => {
+  loadTags()
   loadPosts()
 })
 </script>
@@ -272,6 +320,13 @@ onMounted(() => {
 <style scoped>
 .posts-page {
   padding: 0;
+}
+
+.search-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
 }
 
 .type-badge {
@@ -306,6 +361,16 @@ onMounted(() => {
 .status-badge.hidden {
   background: rgba(255, 59, 48, 0.1);
   color: var(--color-danger);
+}
+
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.no-tags {
+  color: #c0c4cc;
 }
 
 .dialog-footer {

@@ -7,7 +7,7 @@ from config import Config
 from init_db import init_database
 init_database()
 
-from models import Admin, User, Post, Transaction, Tag, PostTag, Report, Announcement
+from models import Admin, User, Post, Transaction, Tag, PostTag, Report, Announcement, Comment
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 ADMIN_STATIC_FOLDER = os.path.join(BASE_DIR, 'admin_static')
@@ -246,22 +246,29 @@ def get_posts_list():
     
     status = request.args.get('status', '').strip()
     keyword = request.args.get('keyword', '').strip()
+    tag_id = request.args.get('tag_id', None, type=int)
     
     status_filter = status if status else None
     keyword_filter = keyword if keyword else None
+    tag_filter = tag_id if tag_id else None
     
     posts = Post.get_all_for_admin(
         limit=per_page,
         offset=offset,
         status=status_filter,
-        keyword=keyword_filter
+        keyword=keyword_filter,
+        tag_id=tag_filter
     )
     
-    total = Post.count_for_admin(status=status_filter, keyword=keyword_filter)
+    total = Post.count_for_admin(
+        status=status_filter, 
+        keyword=keyword_filter,
+        tag_id=tag_filter
+    )
     
     posts_data = []
     for post in posts:
-        post_dict = post.to_dict(include_author=True, include_admin_info=True)
+        post_dict = post.to_dict(include_author=True, include_admin_info=True, include_tags=True)
         posts_data.append(post_dict)
     
     return jsonify({
@@ -283,7 +290,7 @@ def get_post_detail(post_id):
     
     return jsonify({
         'success': True,
-        'post': post.to_dict(include_author=True, include_admin_info=True)
+        'post': post.to_dict(include_author=True, include_admin_info=True, include_tags=True)
     })
 
 @admin_app.route('/api/admin/posts/<int:post_id>/hide', methods=['POST'])
@@ -520,9 +527,13 @@ def get_dashboard():
     active_posts = Post.count_for_admin(status=Post.STATUS_ACTIVE)
     hidden_posts = Post.count_for_admin(status=Post.STATUS_HIDDEN)
     total_recharge = User.get_total_recharge()
+    total_views = Post.get_total_views()
+    total_comments = Comment.count_total()
     
     recent_users = User.get_all_for_admin(limit=5)
     recent_posts = Post.get_all_for_admin(limit=5)
+    
+    popular_posts = Post.get_popular_posts(limit=10)
     
     level_stats = {}
     for level_key in Config.USER_LEVELS.keys():
@@ -534,7 +545,6 @@ def get_dashboard():
     
     pending_reports = Report.count_for_admin(status=Report.STATUS_PENDING)
     active_announcements = Announcement.count_for_admin(status=Announcement.STATUS_ACTIVE)
-    banned_users = User.count_for_admin()
     
     return jsonify({
         'success': True,
@@ -544,11 +554,92 @@ def get_dashboard():
             'active_posts': active_posts,
             'hidden_posts': hidden_posts,
             'total_recharge': total_recharge,
+            'total_views': total_views,
+            'total_comments': total_comments,
             'pending_reports': pending_reports,
             'active_announcements': active_announcements,
             'level_distribution': level_stats,
             'recent_users': [u.to_dict() for u in recent_users],
-            'recent_posts': [p.to_dict(include_author=True) for p in recent_posts]
+            'recent_posts': [p.to_dict(include_author=True) for p in recent_posts],
+            'popular_posts': [p.to_dict(include_author=True) for p in popular_posts]
+        }
+    })
+
+@admin_app.route('/api/admin/stats/trends', methods=['GET'])
+@admin_login_required
+def get_trends_stats():
+    from datetime import datetime, timedelta
+    
+    start_date = request.args.get('start_date', '').strip()
+    end_date = request.args.get('end_date', '').strip()
+    
+    if not start_date or not end_date:
+        end_date = datetime.now().date()
+        start_date = end_date - timedelta(days=30)
+    else:
+        try:
+            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+        except:
+            end_date = datetime.now().date()
+            start_date = end_date - timedelta(days=30)
+    
+    registration_stats = User.get_daily_registration_stats(start_date, end_date)
+    posts_stats = Post.get_daily_posts_stats(start_date, end_date)
+    views_stats = Post.get_daily_views_stats(start_date, end_date)
+    announcement_stats = Announcement.get_daily_stats(start_date, end_date)
+    comment_stats = Comment.get_daily_stats(start_date, end_date)
+    
+    date_range = []
+    current = start_date
+    while current <= end_date:
+        date_range.append(current.strftime('%Y-%m-%d'))
+        current += timedelta(days=1)
+    
+    registration_dict = {str(row['date']): row['count'] for row in registration_stats}
+    posts_dict = {str(row['date']): row['count'] for row in posts_stats}
+    views_dict = {str(row['date']): row['total_views'] for row in views_stats}
+    announcement_dict = {str(row['date']): row['count'] for row in announcement_stats}
+    comment_dict = {str(row['date']): row['count'] for row in comment_stats}
+    
+    registration_data = []
+    posts_data = []
+    views_data = []
+    announcement_data = []
+    comment_data = []
+    
+    for date_str in date_range:
+        registration_data.append({
+            'date': date_str,
+            'count': registration_dict.get(date_str, 0)
+        })
+        posts_data.append({
+            'date': date_str,
+            'count': posts_dict.get(date_str, 0)
+        })
+        views_data.append({
+            'date': date_str,
+            'count': views_dict.get(date_str, 0)
+        })
+        announcement_data.append({
+            'date': date_str,
+            'count': announcement_dict.get(date_str, 0)
+        })
+        comment_data.append({
+            'date': date_str,
+            'count': comment_dict.get(date_str, 0)
+        })
+    
+    return jsonify({
+        'success': True,
+        'trends': {
+            'start_date': str(start_date),
+            'end_date': str(end_date),
+            'registration': registration_data,
+            'posts': posts_data,
+            'views': views_data,
+            'announcements': announcement_data,
+            'comments': comment_data
         }
     })
 

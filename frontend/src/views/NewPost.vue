@@ -38,6 +38,35 @@
             />
           </el-form-item>
 
+          <el-form-item label="标签">
+            <el-select
+              v-model="selectedTagIds"
+              multiple
+              placeholder="请选择标签（可选）"
+              size="large"
+              style="width: 100%;"
+              collapse-tags
+            >
+              <el-option
+                v-for="tag in tagsList"
+                :key="tag.id"
+                :label="tag.name"
+                :value="tag.id"
+              >
+                <div class="tag-option">
+                  <span 
+                    class="tag-color-dot" 
+                    :style="{ backgroundColor: tag.color || '#0071e3' }"
+                  ></span>
+                  <span class="tag-name">{{ tag.name }}</span>
+                </div>
+              </el-option>
+            </el-select>
+            <div class="form-tip">
+              <span class="tip-text">选择合适的标签可以让更多用户发现您的内容</span>
+            </div>
+          </el-form-item>
+
           <el-form-item label="可见范围" prop="viewPermission">
             <el-select v-model="form.viewPermission" placeholder="选择可见范围" size="large" style="width: 100%;">
               <el-option label="所有用户" value="all" />
@@ -104,11 +133,11 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { postApi } from '../services/api'
+import { postApi, tagApi } from '../services/api'
 import { useUserStore } from '../stores/userStore'
 import MarkdownEditor from '../components/MarkdownEditor.vue'
 
@@ -117,6 +146,8 @@ const { user } = useUserStore()
 const formRef = ref(null)
 const fileList = ref([])
 const loading = ref(false)
+const tagsList = ref([])
+const selectedTagIds = ref([])
 
 const form = reactive({
   title: '',
@@ -134,6 +165,17 @@ const rules = {
     { required: true, message: '请输入内容', trigger: 'blur' },
     { min: 10, message: '内容至少10个字符', trigger: 'blur' }
   ]
+}
+
+const loadTags = async () => {
+  try {
+    const response = await tagApi.getAll()
+    if (response.data.success) {
+      tagsList.value = response.data.tags || []
+    }
+  } catch (error) {
+    console.error('加载标签列表失败:', error)
+  }
 }
 
 const handleExceed = (files, fileList) => {
@@ -159,6 +201,10 @@ const handleSubmit = async () => {
         formData.append('view_permission', form.viewPermission)
         formData.append('is_task', form.isTask)
         
+        if (selectedTagIds.value && selectedTagIds.value.length > 0) {
+          formData.append('tag_ids', selectedTagIds.value.join(','))
+        }
+        
         fileList.value.forEach(file => {
           if (file.raw) {
             formData.append('images', file.raw)
@@ -178,6 +224,10 @@ const handleSubmit = async () => {
     }
   })
 }
+
+onMounted(() => {
+  loadTags()
+})
 </script>
 
 <style scoped>
@@ -277,5 +327,27 @@ const handleSubmit = async () => {
   width: 100px;
   height: 100px;
   border-radius: var(--radius-md);
+}
+
+.tag-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tag-color-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tag-name {
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.form-tip {
+  margin-top: 8px;
 }
 </style>

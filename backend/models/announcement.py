@@ -109,6 +109,20 @@ class Announcement:
         row = fetchone(query, params)
         return row['count'] if row else 0
     
+    @staticmethod
+    def get_daily_stats(start_date, end_date):
+        query = '''
+            SELECT 
+                DATE(created_at) as date,
+                COUNT(*) as count
+            FROM announcements
+            WHERE DATE(created_at) BETWEEN %s AND %s
+            GROUP BY DATE(created_at)
+            ORDER BY date
+        '''
+        rows = fetchall(query, (start_date, end_date))
+        return rows if rows else []
+    
     def is_active(self):
         return self.status == self.STATUS_ACTIVE
     

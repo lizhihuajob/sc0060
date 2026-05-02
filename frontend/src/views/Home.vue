@@ -175,6 +175,17 @@
                   </div>
                   <p class="post-excerpt">{{ truncate(post.content, 120) }}</p>
                   
+                  <div v-if="post.tags && post.tags.length > 0" class="post-tags">
+                    <span 
+                      v-for="tag in post.tags" 
+                      :key="tag.id"
+                      class="post-tag"
+                      :style="{ backgroundColor: tag.color || '#0071e3', color: '#fff' }"
+                    >
+                      {{ tag.name }}
+                    </span>
+                  </div>
+                  
                   <div class="post-images" v-if="post.images?.length > 0">
                     <div class="image-grid">
                       <img 
@@ -243,6 +254,36 @@
         </div>
 
         <div class="sidebar">
+          <div v-if="tagsList.length > 0" class="sidebar-card card">
+            <div class="sidebar-header">
+              <el-icon class="sidebar-icon"><PriceTag /></el-icon>
+              <h3 class="sidebar-title">标签筛选</h3>
+            </div>
+            <div class="tag-filter-list">
+              <button 
+                class="tag-filter-item"
+                :class="{ active: selectedTagId === null }"
+                @click="selectTag(null)"
+              >
+                全部
+              </button>
+              <button 
+                v-for="tag in tagsList" 
+                :key="tag.id"
+                class="tag-filter-item"
+                :class="{ active: selectedTagId === tag.id }"
+                :style="{ '--tag-color': tag.color || '#0071e3' }"
+                @click="selectTag(tag.id)"
+              >
+                <span 
+                  class="tag-color-dot" 
+                  :style="{ backgroundColor: tag.color || '#0071e3' }"
+                ></span>
+                <span class="tag-name">{{ tag.name }}</span>
+              </button>
+            </div>
+          </div>
+
           <div class="sidebar-card card">
             <div class="sidebar-header">
               <span class="sidebar-icon">💎</span>
@@ -321,9 +362,9 @@ import { ElMessage } from 'element-plus'
 import { 
   Document, Clock, View, Loading, Search, Fire, 
   Star, Plus, ArrowDown, Close, Edit, Wallet,
-  Lock, CaretBottom, Sort, User
+  Lock, CaretBottom, Sort, User, PriceTag
 } from '@element-plus/icons-vue'
-import { postApi, authApi } from '../services/api'
+import { postApi, authApi, tagApi } from '../services/api'
 import { useUserStore } from '../stores/userStore'
 
 const router = useRouter()
@@ -344,6 +385,8 @@ const hasSearched = ref(false)
 const searchKeyword = ref('')
 const postType = ref('all')
 const sortBy = ref('latest')
+const selectedTagId = ref(null)
+const tagsList = ref([])
 
 const typeOptions = [
   { value: 'all', label: '全部' },
@@ -360,6 +403,17 @@ const currentSortLabel = computed(() => {
   const sort = sortOptions.find(s => s.value === sortBy.value)
   return sort ? sort.label : '最新'
 })
+
+const loadTags = async () => {
+  try {
+    const response = await tagApi.getAll()
+    if (response.data.success) {
+      tagsList.value = response.data.tags || []
+    }
+  } catch (error) {
+    console.error('加载标签列表失败:', error)
+  }
+}
 
 const toggleFavorite = async (post) => {
   if (!user.value) {
@@ -412,6 +466,9 @@ const loadPosts = async (append = false) => {
     if (sortBy.value !== 'latest') {
       params.sort = sortBy.value
     }
+    if (selectedTagId.value) {
+      params.tag_id = selectedTagId.value
+    }
     
     const response = await postApi.getList(params)
     
@@ -460,6 +517,13 @@ const selectSort = (sort) => {
   loadPosts(false)
 }
 
+const selectTag = (tagId) => {
+  selectedTagId.value = selectedTagId.value === tagId ? null : tagId
+  page.value = 1
+  posts.value = []
+  loadPosts(false)
+}
+
 const loadMore = () => {
   page.value++
   loadPosts(true)
@@ -482,6 +546,7 @@ const formatTime = (time) => {
 
 onMounted(async () => {
   await fetchUser()
+  loadTags()
   loadPinnedPosts()
   loadPosts()
 })
@@ -1266,6 +1331,64 @@ onMounted(async () => {
 .recharge-icon {
   background: rgba(255, 149, 0, 0.12);
   color: var(--color-warning);
+}
+
+.tag-filter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tag-filter-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.tag-filter-item:hover {
+  border-color: var(--color-primary);
+  background: rgba(0, 122, 255, 0.05);
+}
+
+.tag-filter-item.active {
+  border-color: var(--color-primary);
+  background: rgba(0, 122, 255, 0.1);
+  color: var(--color-primary);
+}
+
+.tag-color-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tag-name {
+  font-size: var(--font-size-sm);
+}
+
+.post-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.post-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
 }
 
 @media (max-width: 1200px) {
