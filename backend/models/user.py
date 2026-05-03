@@ -1,3 +1,5 @@
+import random
+import string
 from werkzeug.security import generate_password_hash, check_password_hash
 from database import execute, fetchone, fetchall
 from config import Config
@@ -12,6 +14,11 @@ class User:
         self.level = kwargs.get('level', 'bronze')
         self.posts_count = kwargs.get('posts_count', 0)
         self.balance = kwargs.get('balance', 0)
+        self.points = kwargs.get('points', 0)
+        self.invite_code = kwargs.get('invite_code')
+        self.invited_by = kwargs.get('invited_by')
+        self.last_checkin_date = kwargs.get('last_checkin_date')
+        self.continuous_checkin_days = kwargs.get('continuous_checkin_days', 0)
         self.is_banned = kwargs.get('is_banned', 0)
         self.banned_at = kwargs.get('banned_at')
         self.banned_by = kwargs.get('banned_by')
@@ -20,13 +27,58 @@ class User:
         self._banned_by_admin = None
     
     @staticmethod
-    def create(username, password, email=None):
+    def create(username, password, email=None, invite_code=None):
         hashed_password = generate_password_hash(password)
+        
+        inviter_id = None
+        if invite_code:
+            inviter = User.get_by_invite_code(invite_code)
+            if inviter:
+                inviter_id = inviter.id
+        
+        invite_code_generated = User.generate_invite_code()
+        
+        initial_points = 0
+        if inviter_id:
+            initial_points = Config.INVITE_CONFIG.get('invited_new_user_bonus', 0)
+        
         user_id = execute(
-            'INSERT INTO users (username, password, email) VALUES (%s, %s, %s) RETURNING id',
-            (username, hashed_password, email)
+            '''INSERT INTO users (username, password, email, invite_code, invited_by, points) 
+               VALUES (%s, %s, %s, %s, %s, %s) RETURNING id''',
+            (username, hashed_password, email, invite_code_generated, inviter_id, initial_points)
         )
+        
         return User.get_by_id(user_id)
+    
+    @staticmethod
+    def get_by_invite_code(invite_code):
+        if not invite_code:
+            return None
+        row = fetchone('SELECT * FROM users WHERE invite_code = %s', (invite_code,))
+        return User(**row) if row else None
+    
+    @staticmethod
+    def generate_invite_code(length=None):
+        if length is None:
+            length = Config.INVITE_CONFIG.get('invite_code_length', 8)
+        
+        chars = string.ascii_uppercase + string.digits
+        
+        max_attempts = 100
+        for _ in range(max_attempts):
+            code = ''.join(random.choice(chars) for _ in range(length))
+            if not User.get_by_invite_code(code):
+                return code
+        
+        length += 2
+        for _ in range(max_attempts):
+            code = ''.join(random.choice(chars) for _ in range(length))
+            if not User.get_by_invite_code(code):
+                return code
+        
+        timestamp = str(int(__import__('time').time()))[-6:]
+        code = timestamp + ''.join(random.choice(chars) for _ in range(4))
+        return code
     
     @staticmethod
     def get_by_id(user_id):
@@ -248,7 +300,176 @@ class User:
             self._banned_by_admin = Admin.get_by_id(self.banned_by)
         return self._banned_by_admin
     
-    def to_dict(self, include_transactions_summary=False, include_admin_info=False):
+    def add_points(self, points, transaction_type, description=None, related_id=None):
+        if points <= 0:
+            return False
+        
+        from models.points_transaction import PointsTransaction
+        
+        self.points += points
+        execute(
+            'UPDATE users SET points = points + %s WHERE id = %s',
+            (points, self.id)
+        )
+        
+        PointsTransaction.create(
+            user_id=self.id,
+            points=points,
+            transaction_type=transaction_type,
+            description=description,
+            related_id=related_id
+        )
+        
+        return True
+    
+    def deduct_points(self, points, transaction_type, description=None, related_id=None):
+        if points <= 0 or self.points < points:
+            return False
+        
+        from models.points_transaction import PointsTransaction
+        
+        self.points -= points
+        execute(
+            'UPDATE users SET points = points - %s WHERE id = %s',
+            (points, self.id)
+        )
+        
+        PointsTransaction.create(
+            user_id=self.id,
+            points=-points,
+            transaction_type=transaction_type,
+            description=description,
+            related_id=related_id
+        )
+        
+        return True
+    
+    def checkin(self):
+        from datetime import date, timedelta
+        from models.checkin_record import CheckinRecord
+        
+        today = date.today()
+        
+        if CheckinRecord.check_today(self.id):
+            return None, '今日已签到'
+        
+        continuous_days = CheckinRecord.count_continuous_days(self.id, today)
+        continuous_days += 1
+        
+        max_continuous = Config.POINTS_CONFIG.get('max_continuous_days', 7)
+        if continuous_days > max_continuous:
+            continuous_days = max_continuous
+        
+        base_points = Config.POINTS_CONFIG.get('daily_checkin_points', 10)
+        bonus_base = Config.POINTS_CONFIG.get('continuous_bonus_base', 5)
+        
+        bonus_points = bonus_base * (continuous_days - 1) if continuous_days > 1 else 0
+        total_points = base_points + bonus_points
+        
+        record = CheckinRecord.create(
+            user_id=self.id,
+            checkin_date=today,
+            points_earned=total_points,
+            continuous_days=continuous_days
+        )
+        
+        self.add_points(
+            points=total_points,
+            transaction_type='checkin',
+            description=f'每日签到，连续{continuous_days}天',
+            related_id=record.id
+        )
+        
+        execute(
+            '''UPDATE users 
+               SET last_checkin_date = %s, continuous_checkin_days = %s 
+               WHERE id = %s''',
+            (today, continuous_days, self.id)
+        )
+        self.last_checkin_date = today
+        self.continuous_checkin_days = continuous_days
+        
+        return {
+            'points_earned': total_points,
+            'continuous_days': continuous_days,
+            'base_points': base_points,
+            'bonus_points': bonus_points
+        }, None
+    
+    def get_inviter(self):
+        if not self.invited_by:
+            return None
+        return User.get_by_id(self.invited_by)
+    
+    def get_invite_stats(self):
+        from models.invite_record import InviteRecord
+        
+        total_invited = InviteRecord.count_by_inviter(self.id)
+        total_reward = InviteRecord.get_total_reward_by_inviter(self.id)
+        unclaimed_count = InviteRecord.count_unclaimed_by_inviter(self.id)
+        
+        return {
+            'total_invited': total_invited,
+            'total_reward': total_reward,
+            'unclaimed_count': unclaimed_count,
+            'invite_code': self.invite_code
+        }
+    
+    def exchange_points_to_balance(self, exchange_count=1):
+        from models.transaction import Transaction
+        
+        points_rate = Config.POINTS_CONFIG.get('points_to_balance_rate', 100)
+        balance_per = Config.POINTS_CONFIG.get('balance_per_exchange', 1)
+        
+        points_needed = points_rate * exchange_count
+        balance_gained = balance_per * exchange_count
+        
+        if self.points < points_needed:
+            return False, f'积分不足，需要 {points_needed} 积分'
+        
+        if not self.deduct_points(
+            points=points_needed,
+            transaction_type='exchange_balance',
+            description=f'用 {points_needed} 积分兑换 {balance_gained} 元余额'
+        ):
+            return False, '积分扣除失败'
+        
+        self.add_balance(balance_gained)
+        Transaction.create(
+            user_id=self.id,
+            amount=balance_gained,
+            transaction_type='points_exchange',
+            description=f'积分兑换余额 +{balance_gained}元'
+        )
+        
+        return True, f'兑换成功！获得 {balance_gained} 元余额'
+    
+    def exchange_points_to_posts(self, exchange_count=1):
+        points_rate = Config.POINTS_CONFIG.get('points_to_posts_rate', 50)
+        posts_per = Config.POINTS_CONFIG.get('posts_per_exchange', 1)
+        
+        points_needed = points_rate * exchange_count
+        posts_gained = posts_per * exchange_count
+        
+        if self.points < points_needed:
+            return False, f'积分不足，需要 {points_needed} 积分'
+        
+        if not self.deduct_points(
+            points=points_needed,
+            transaction_type='exchange_posts',
+            description=f'用 {points_needed} 积分兑换 {posts_gained} 个发布额度'
+        ):
+            return False, '积分扣除失败'
+        
+        self.posts_count = max(0, self.posts_count - posts_gained)
+        execute(
+            'UPDATE users SET posts_count = %s WHERE id = %s',
+            (self.posts_count, self.id)
+        )
+        
+        return True, f'兑换成功！获得 {posts_gained} 个发布额度'
+    
+    def to_dict(self, include_transactions_summary=False, include_admin_info=False, include_points_info=False, include_invite_info=False):
         data = {
             'id': self.id,
             'username': self.username,
@@ -259,6 +480,7 @@ class User:
             'posts_count': self.posts_count,
             'posts_limit': self.get_posts_limit(),
             'balance': self.balance,
+            'points': self.points,
             'is_banned': self.is_banned_user(),
             'created_at': self.created_at
         }
@@ -278,5 +500,21 @@ class User:
         if include_transactions_summary:
             transactions_summary = self.get_transactions_summary()
             data.update(transactions_summary)
+        
+        if include_points_info:
+            data['last_checkin_date'] = self.last_checkin_date
+            data['continuous_checkin_days'] = self.continuous_checkin_days
+        
+        if include_invite_info:
+            data['invite_code'] = self.invite_code
+            data['invited_by'] = self.invited_by
+            
+            inviter = self.get_inviter()
+            if inviter:
+                data['inviter'] = {
+                    'id': inviter.id,
+                    'username': inviter.username,
+                    'avatar': inviter.avatar
+                }
         
         return data

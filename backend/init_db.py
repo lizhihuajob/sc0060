@@ -278,6 +278,67 @@ def init_database():
         cursor.execute('ALTER TABLE comments ADD COLUMN reply_to_user_id INTEGER')
         print('Added missing column: comments.reply_to_user_id')
     
+    if not column_exists(cursor, 'users', 'points'):
+        cursor.execute('ALTER TABLE users ADD COLUMN points INTEGER DEFAULT 0')
+        print('Added missing column: users.points')
+    
+    if not column_exists(cursor, 'users', 'invite_code'):
+        cursor.execute('ALTER TABLE users ADD COLUMN invite_code VARCHAR(20) UNIQUE')
+        print('Added missing column: users.invite_code')
+    
+    if not column_exists(cursor, 'users', 'invited_by'):
+        cursor.execute('ALTER TABLE users ADD COLUMN invited_by INTEGER')
+        print('Added missing column: users.invited_by')
+    
+    if not column_exists(cursor, 'users', 'last_checkin_date'):
+        cursor.execute('ALTER TABLE users ADD COLUMN last_checkin_date DATE')
+        print('Added missing column: users.last_checkin_date')
+    
+    if not column_exists(cursor, 'users', 'continuous_checkin_days'):
+        cursor.execute('ALTER TABLE users ADD COLUMN continuous_checkin_days INTEGER DEFAULT 0')
+        print('Added missing column: users.continuous_checkin_days')
+    
+    create_table_if_not_exists(cursor, 'checkin_records', '''
+        CREATE TABLE checkin_records (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            checkin_date DATE NOT NULL,
+            points_earned INTEGER DEFAULT 0,
+            continuous_days INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+            UNIQUE(user_id, checkin_date)
+        )
+    ''')
+    
+    create_table_if_not_exists(cursor, 'points_transactions', '''
+        CREATE TABLE points_transactions (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            points INTEGER NOT NULL,
+            transaction_type VARCHAR(50) NOT NULL,
+            description TEXT,
+            related_id INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+        )
+    ''')
+    
+    create_table_if_not_exists(cursor, 'invite_records', '''
+        CREATE TABLE invite_records (
+            id SERIAL PRIMARY KEY,
+            inviter_id INTEGER NOT NULL,
+            invited_user_id INTEGER NOT NULL,
+            reward_amount REAL DEFAULT 0,
+            reward_claimed INTEGER DEFAULT 0,
+            claimed_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (inviter_id) REFERENCES users (id) ON DELETE CASCADE,
+            FOREIGN KEY (invited_user_id) REFERENCES users (id) ON DELETE CASCADE,
+            UNIQUE(invited_user_id)
+        )
+    ''')
+    
     print('Creating indexes...')
     
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_admins_username ON admins(username)')
@@ -308,6 +369,14 @@ def init_database():
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_announcements_is_pinned ON announcements(is_pinned)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_announcements_status ON announcements(status)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_announcements_created_at ON announcements(created_at)')
+    
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_checkin_records_user_id ON checkin_records(user_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_checkin_records_checkin_date ON checkin_records(checkin_date)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_points_transactions_user_id ON points_transactions(user_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_points_transactions_created_at ON points_transactions(created_at)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_invite_records_inviter_id ON invite_records(inviter_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_invite_records_invited_user_id ON invite_records(invited_user_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_users_invite_code ON users(invite_code)')
     
     print('Indexes created/verified')
     

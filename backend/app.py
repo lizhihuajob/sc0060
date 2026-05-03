@@ -9,7 +9,7 @@ from config import Config
 from init_db import init_database
 init_database()
 
-from models import User, Post, Transaction, Comment, Favorite, Report, Announcement, Tag, PostTag
+from models import User, Post, Transaction, Comment, Favorite, Report, Announcement, Tag, PostTag, CheckinRecord, PointsTransaction, InviteRecord
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -67,11 +67,12 @@ def get_current_user_info():
 
 @app.route('/api/auth/register', methods=['POST'])
 def register():
-    data = request.get_json()
+    data = request.get_json() or {}
     username = data.get('username', '').strip()
     password = data.get('password', '')
     confirm_password = data.get('confirm_password', '')
     email = data.get('email', '').strip()
+    invite_code = data.get('invite_code', '').strip() or None
     
     if not username or not password:
         return jsonify({'success': False, 'message': '用户名和密码不能为空'}), 400
@@ -82,7 +83,23 @@ def register():
     if User.get_by_username(username):
         return jsonify({'success': False, 'message': '用户名已存在'}), 400
     
-    user = User.create(username, password, email)
+    if invite_code:
+        inviter = User.get_by_invite_code(invite_code)
+        if not inviter:
+            return jsonify({'success': False, 'message': '邀请码无效'}), 400
+    
+    user = User.create(username, password, email, invite_code)
+    
+    if invite_code:
+        inviter = User.get_by_invite_code(invite_code)
+        if inviter:
+            reward_amount = Config.INVITE_CONFIG.get('invite_reward_balance', 5)
+            InviteRecord.create(
+                inviter_id=inviter.id,
+                invited_user_id=user.id,
+                reward_amount=reward_amount
+            )
+    
     session.pop('user_id', None)
     session['user_id'] = user.id
     session.permanent = True
@@ -95,7 +112,7 @@ def register():
 
 @app.route('/api/auth/login', methods=['POST'])
 def login():
-    data = request.get_json()
+    data = request.get_json() or {}
     username = data.get('username', '').strip()
     password = data.get('password', '')
     
@@ -512,7 +529,7 @@ def create_comment(post_id):
     if not post.is_visible_to(user):
         return jsonify({'success': False, 'message': '您没有权限查看该公告'}), 403
     
-    data = request.get_json()
+    data = request.get_json() or {}
     content = data.get('content', '').strip()
     parent_id = data.get('parent_id')
     reply_to_user_id = data.get('reply_to_user_id')
@@ -606,7 +623,7 @@ def get_user_edit_logs():
 def upgrade():
     user = get_current_user()
     
-    data = request.get_json()
+    data = request.get_json() or {}
     target_level = data.get('level', '')
     
     if target_level not in Config.USER_LEVELS:
@@ -644,7 +661,7 @@ def upgrade():
 def recharge():
     user = get_current_user()
     
-    data = request.get_json()
+    data = request.get_json() or {}
     amount = data.get('amount', 0)
     
     try:
@@ -703,7 +720,7 @@ def upload_avatar():
 def change_password():
     user = get_current_user()
     
-    data = request.get_json()
+    data = request.get_json() or {}
     old_password = data.get('old_password', '')
     new_password = data.get('new_password', '')
     confirm_password = data.get('confirm_password', '')
@@ -724,6 +741,317 @@ def change_password():
         })
     else:
         return jsonify({'success': False, 'message': '原密码错误'}), 400
+
+@app.route('/api/user/checkin', methods=['POST'])
+@login_required
+def checkin():
+    user = get_current_user()
+    
+    result, error = user.checkin()
+    
+    if error:
+        return jsonify({'success': False, 'message': error}), 400
+    
+    return jsonify({
+        'success': True,
+        'message': '签到成功',
+        'data': result,
+        'user': user.to_dict()
+    })
+
+@app.route('/api/user/checkin/status', methods=['GET'])
+@login_required
+def get_checkin_status():
+    from datetime import date
+    
+    user = get_current_user()
+    
+    today = date.today()
+    has_checked_in = CheckinRecord.check_today(user.id)
+    continuous_days = CheckinRecord.count_continuous_days(user.id, today)
+    
+    return jsonify({
+        'success': True,
+        'data': {
+            'has_checked_in': has_checked_in,
+            'continuous_days': continuous_days,
+            'points': user.points,
+            'config': Config.POINTS_CONFIG
+        }
+    })
+
+@app.route('/api/user/checkin/history', methods=['GET'])
+@login_required
+def get_checkin_history():
+    user = get_current_user()
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 30, type=int)
+    offset = (page - 1) * per_page
+    
+    records = CheckinRecord.get_by_user(user.id, limit=per_page, offset=offset)
+    
+    return jsonify({
+        'success': True,
+        'records': [r.to_dict() for r in records],
+        'page': page,
+        'per_page': per_page
+    })
+
+@app.route('/api/user/points/transactions', methods=['GET'])
+@login_required
+def get_points_transactions():
+    user = get_current_user()
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    offset = (page - 1) * per_page
+    
+    transactions = PointsTransaction.get_by_user(user.id, limit=per_page, offset=offset)
+    total = PointsTransaction.count_by_user(user.id)
+    
+    return jsonify({
+        'success': True,
+        'transactions': [t.to_dict() for t in transactions],
+        'total': total,
+        'page': page,
+        'per_page': per_page,
+        'total_pages': (total + per_page - 1) // per_page
+    })
+
+@app.route('/api/user/points/exchange/balance', methods=['POST'])
+@login_required
+def exchange_points_to_balance():
+    user = get_current_user()
+    data = request.get_json() or {}
+    exchange_count = data.get('count', 1)
+    
+    try:
+        exchange_count = int(exchange_count)
+        if exchange_count < 1:
+            raise ValueError()
+    except:
+        return jsonify({'success': False, 'message': '请输入有效的兑换数量'}), 400
+    
+    success, message = user.exchange_points_to_balance(exchange_count)
+    
+    if not success:
+        return jsonify({'success': False, 'message': message}), 400
+    
+    return jsonify({
+        'success': True,
+        'message': message,
+        'user': user.to_dict()
+    })
+
+@app.route('/api/user/points/exchange/posts', methods=['POST'])
+@login_required
+def exchange_points_to_posts():
+    user = get_current_user()
+    data = request.get_json() or {}
+    exchange_count = data.get('count', 1)
+    
+    try:
+        exchange_count = int(exchange_count)
+        if exchange_count < 1:
+            raise ValueError()
+    except:
+        return jsonify({'success': False, 'message': '请输入有效的兑换数量'}), 400
+    
+    success, message = user.exchange_points_to_posts(exchange_count)
+    
+    if not success:
+        return jsonify({'success': False, 'message': message}), 400
+    
+    return jsonify({
+        'success': True,
+        'message': message,
+        'user': user.to_dict()
+    })
+
+@app.route('/api/user/invite', methods=['GET'])
+@login_required
+def get_invite_info():
+    user = get_current_user()
+    
+    invite_stats = user.get_invite_stats()
+    
+    return jsonify({
+        'success': True,
+        'data': invite_stats,
+        'config': Config.INVITE_CONFIG
+    })
+
+@app.route('/api/user/invite/records', methods=['GET'])
+@login_required
+def get_invite_records():
+    user = get_current_user()
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    offset = (page - 1) * per_page
+    
+    records = InviteRecord.get_by_inviter(user.id, limit=per_page, offset=offset)
+    total = InviteRecord.count_by_inviter(user.id)
+    
+    return jsonify({
+        'success': True,
+        'records': [r.to_dict(include_invited_user=True) for r in records],
+        'total': total,
+        'page': page,
+        'per_page': per_page,
+        'total_pages': (total + per_page - 1) // per_page
+    })
+
+@app.route('/api/user/invite/claim', methods=['POST'])
+@login_required
+def claim_invite_rewards():
+    user = get_current_user()
+    data = request.get_json() or {}
+    record_id = data.get('record_id')
+    
+    if not record_id:
+        unclaimed_records = InviteRecord.get_by_inviter(user.id, limit=100)
+        total_reward = 0
+        claimed_count = 0
+        
+        for record in unclaimed_records:
+            if record.reward_claimed == 0:
+                reward = record.reward_amount or Config.INVITE_CONFIG.get('invite_reward_balance', 5)
+                user.add_balance(reward)
+                Transaction.create(
+                    user.id,
+                    reward,
+                    Transaction.TYPE_INVITE_REWARD,
+                    f'邀请奖励：邀请用户「{User.get_by_id(record.invited_user_id).username if User.get_by_id(record.invited_user_id) else "未知"}」注册'
+                )
+                record.claim_reward()
+                total_reward += reward
+                claimed_count += 1
+        
+        if claimed_count == 0:
+            return jsonify({'success': False, 'message': '没有可领取的奖励'}), 400
+        
+        return jsonify({
+            'success': True,
+            'message': f'成功领取 {claimed_count} 笔奖励，共 {total_reward} 元',
+            'user': user.to_dict()
+        })
+    
+    record = InviteRecord.get_by_id(record_id)
+    if not record or record.inviter_id != user.id:
+        return jsonify({'success': False, 'message': '奖励记录不存在'}), 404
+    
+    if record.reward_claimed == 1:
+        return jsonify({'success': False, 'message': '该奖励已领取'}), 400
+    
+    reward = record.reward_amount or Config.INVITE_CONFIG.get('invite_reward_balance', 5)
+    user.add_balance(reward)
+    Transaction.create(
+        user.id,
+        reward,
+        Transaction.TYPE_INVITE_REWARD,
+        f'邀请奖励：邀请用户注册'
+    )
+    record.claim_reward()
+    
+    return jsonify({
+        'success': True,
+        'message': f'领取成功，获得 {reward} 元',
+        'user': user.to_dict()
+    })
+
+@app.route('/api/share/link', methods=['GET'])
+@login_required
+def get_share_link():
+    from flask import request as flask_request
+    
+    user = get_current_user()
+    share_type = request.args.get('type', 'invite')
+    target_id = request.args.get('id')
+    
+    host_url = flask_request.host_url.rstrip('/')
+    
+    share_info = {}
+    
+    if share_type == 'invite':
+        share_info = {
+            'type': 'invite',
+            'title': f'来自 {user.username} 的邀请',
+            'description': '加入我们，注册即送积分奖励！',
+            'url': f'{host_url}/register?invite_code={user.invite_code}',
+            'invite_code': user.invite_code
+        }
+    elif share_type == 'post' and target_id:
+        post = Post.get_by_id(int(target_id))
+        if post and not post.is_hidden():
+            share_info = {
+                'type': 'post',
+                'title': post.title,
+                'description': post.content[:100] + '...' if len(post.content) > 100 else post.content,
+                'url': f'{host_url}/post/{post.id}'
+            }
+    elif share_type == 'announcement' and target_id:
+        from models import Announcement
+        announcement = Announcement.get_by_id(int(target_id))
+        if announcement and announcement.is_active():
+            share_info = {
+                'type': 'announcement',
+                'title': announcement.title,
+                'description': announcement.content[:100] + '...' if len(announcement.content) > 100 else announcement.content,
+                'url': f'{host_url}/announcement/{announcement.id}'
+            }
+    
+    if not share_info:
+        return jsonify({'success': False, 'message': '分享内容不存在'}), 404
+    
+    return jsonify({
+        'success': True,
+        'share': share_info
+    })
+
+@app.route('/api/share/qrcode', methods=['GET'])
+@login_required
+def generate_qrcode():
+    import io
+    import base64
+    
+    url = request.args.get('url')
+    if not url:
+        return jsonify({'success': False, 'message': '缺少URL参数'}), 400
+    
+    try:
+        import qrcode
+        from qrcode.constants import ERROR_CORRECT_L
+        
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(url)
+        qr.make(fit=True)
+        
+        img = qr.make_image(fill_color="black", back_color="white")
+        
+        buffer = io.BytesIO()
+        img.save(buffer, format='PNG')
+        buffer.seek(0)
+        
+        img_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        
+        return jsonify({
+            'success': True,
+            'qrcode': f'data:image/png;base64,{img_base64}',
+            'url': url
+        })
+    except ImportError:
+        return jsonify({
+            'success': True,
+            'qrcode': None,
+            'message': '请安装 qrcode 库以生成二维码',
+            'url': url
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'生成二维码失败: {str(e)}'}), 500
 
 @app.route('/api/posts/<int:post_id>/favorite', methods=['POST'])
 @login_required
@@ -778,7 +1106,7 @@ def get_user_favorites():
 @login_required
 def create_report():
     user = get_current_user()
-    data = request.get_json()
+    data = request.get_json() or {}
     
     target_type = data.get('target_type', '').strip()
     target_id = data.get('target_id')
