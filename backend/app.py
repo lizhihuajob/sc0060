@@ -68,11 +68,12 @@ def get_current_user_info():
 @app.route('/api/auth/register', methods=['POST'])
 def register():
     data = request.get_json() or {}
-    username = data.get('username', '').strip()
-    password = data.get('password', '')
-    confirm_password = data.get('confirm_password', '')
-    email = data.get('email', '').strip()
-    invite_code = data.get('invite_code', '').strip() or None
+    username = (data.get('username') or '').strip()
+    password = data.get('password') or ''
+    confirm_password = data.get('confirm_password') or ''
+    email = (data.get('email') or '').strip()
+    invite_code_raw = data.get('invite_code')
+    invite_code = invite_code_raw.strip() if invite_code_raw else None
     
     if not username or not password:
         return jsonify({'success': False, 'message': '用户名和密码不能为空'}), 400
@@ -113,8 +114,8 @@ def register():
 @app.route('/api/auth/login', methods=['POST'])
 def login():
     data = request.get_json() or {}
-    username = data.get('username', '').strip()
-    password = data.get('password', '')
+    username = (data.get('username') or '').strip()
+    password = data.get('password') or ''
     
     if not username or not password:
         return jsonify({'success': False, 'message': '用户名和密码不能为空'}), 400
@@ -530,7 +531,7 @@ def create_comment(post_id):
         return jsonify({'success': False, 'message': '您没有权限查看该公告'}), 403
     
     data = request.get_json() or {}
-    content = data.get('content', '').strip()
+    content = (data.get('content') or '').strip()
     parent_id = data.get('parent_id')
     reply_to_user_id = data.get('reply_to_user_id')
     
@@ -1108,10 +1109,10 @@ def create_report():
     user = get_current_user()
     data = request.get_json() or {}
     
-    target_type = data.get('target_type', '').strip()
+    target_type = (data.get('target_type') or '').strip()
     target_id = data.get('target_id')
-    reason = data.get('reason', '').strip() or data.get('reason_type', '').strip()
-    reason_detail = data.get('reason_detail', '').strip() or data.get('description', '').strip()
+    reason = (data.get('reason') or data.get('reason_type') or '').strip()
+    reason_detail = (data.get('reason_detail') or data.get('description') or '').strip()
     
     valid_target_types = [Report.TYPE_POST, Report.TYPE_COMMENT, Report.TYPE_USER]
     if target_type not in valid_target_types:
