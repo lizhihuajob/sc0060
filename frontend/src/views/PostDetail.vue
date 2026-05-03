@@ -60,6 +60,14 @@
               <span>{{ post.views_count }} 次浏览</span>
             </div>
             <button 
+              class="share-btn" 
+              @click="showShareOptions"
+              title="分享"
+            >
+              <el-icon><Share /></el-icon>
+              分享
+            </button>
+            <button 
               v-if="currentUser && currentUser.id !== post.author?.id"
               class="report-btn" 
               @click="showReportDialog"
@@ -71,6 +79,68 @@
           </div>
         </div>
       </div>
+
+      <el-dialog
+        v-model="shareVisible"
+        title="分享"
+        width="450px"
+        :close-on-click-modal="false"
+      >
+        <div class="share-options">
+          <div class="share-option-item" @click="copyShareLink">
+            <div class="share-option-icon link-icon">
+              <el-icon><Link /></el-icon>
+            </div>
+            <div class="share-option-info">
+              <div class="share-option-title">复制链接</div>
+              <div class="share-option-desc">复制当前页面链接到剪贴板</div>
+            </div>
+            <el-icon class="share-option-arrow"><ArrowRight /></el-icon>
+          </div>
+
+          <div class="share-option-item" @click="generateShareQRCode">
+            <div class="share-option-icon qrcode-icon">
+              <el-icon><Picture /></el-icon>
+            </div>
+            <div class="share-option-info">
+              <div class="share-option-title">生成二维码</div>
+              <div class="share-option-desc">生成二维码图片，可保存分享</div>
+            </div>
+            <el-icon class="share-option-arrow"><ArrowRight /></el-icon>
+          </div>
+        </div>
+
+        <div class="share-link-preview" v-if="shareInfo">
+          <div class="share-link-preview-title">分享链接预览</div>
+          <div class="share-link-preview-box">
+            <div class="share-preview-title">{{ shareInfo.title }}</div>
+            <div class="share-preview-desc" v-if="shareInfo.description">{{ shareInfo.description }}</div>
+            <div class="share-preview-url">
+              <el-input :value="shareInfo.url" readonly>
+                <template #append>
+                  <el-button @click="copyShareLinkDirect">
+                    <el-icon><CopyDocument /></el-icon>
+                    复制
+                  </el-button>
+                </template>
+              </el-input>
+            </div>
+          </div>
+        </div>
+
+        <div class="qrcode-preview" v-if="qrcodeImage">
+          <div class="qrcode-preview-title">二维码</div>
+          <div class="qrcode-preview-box">
+            <img :src="qrcodeImage" alt="分享二维码" class="qrcode-img" />
+            <div class="qrcode-actions">
+              <el-button type="primary" @click="downloadQRCode">
+                <el-icon><Download /></el-icon>
+                保存二维码
+              </el-button>
+            </div>
+          </div>
+        </div>
+      </el-dialog>
 
       <el-dialog
         v-model="reportVisible"
@@ -188,8 +258,8 @@
 import { ref, onMounted, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, View, Loading, ChatDotRound, User, Delete, Warning } from '@element-plus/icons-vue'
-import { postApi, authApi, reportApi } from '../services/api'
+import { ArrowLeft, View, Loading, ChatDotRound, User, Delete, Warning, Share, Link, Picture, ArrowRight, CopyDocument, Download } from '@element-plus/icons-vue'
+import { postApi, authApi, reportApi, shareApi } from '../services/api'
 import MarkdownRenderer from '../components/MarkdownRenderer.vue'
 import CommentItem from '../components/CommentItem.vue'
 
@@ -205,6 +275,9 @@ const newComment = ref('')
 const submitting = ref(false)
 const reportVisible = ref(false)
 const reportSubmitting = ref(false)
+const shareVisible = ref(false)
+const shareInfo = ref(null)
+const qrcodeImage = ref('')
 
 const reportForm = reactive({
   reason_type: '',
@@ -398,6 +471,75 @@ const submitReport = async () => {
 const formatTime = (time) => {
   if (!time) return ''
   return time.replace(' GMT', '')
+}
+
+const showShareOptions = () => {
+  shareInfo.value = null
+  qrcodeImage.value = ''
+  shareVisible.value = true
+}
+
+const copyShareLink = async () => {
+  try {
+    const response = await shareApi.getShareLink('post', post.value.id)
+    if (response.data.success) {
+      shareInfo.value = response.data.data
+      await navigator.clipboard.writeText(response.data.data.url)
+      ElMessage.success('链接已复制到剪贴板')
+    }
+  } catch (error) {
+    const currentUrl = window.location.href
+    try {
+      await navigator.clipboard.writeText(currentUrl)
+      ElMessage.success('链接已复制到剪贴板')
+    } catch (e) {
+      ElMessage.error('复制失败，请手动复制链接')
+    }
+  }
+}
+
+const copyShareLinkDirect = async () => {
+  if (!shareInfo.value?.url) return
+  try {
+    await navigator.clipboard.writeText(shareInfo.value.url)
+    ElMessage.success('链接已复制到剪贴板')
+  } catch (error) {
+    ElMessage.error('复制失败，请手动复制')
+  }
+}
+
+const generateShareQRCode = async () => {
+  try {
+    let shareUrl = window.location.href
+    try {
+      const shareResponse = await shareApi.getShareLink('post', post.value.id)
+      if (shareResponse.data.success) {
+        shareInfo.value = shareResponse.data.data
+        shareUrl = shareResponse.data.data.url
+      }
+    } catch (e) {
+      // 使用当前 URL
+    }
+    
+    const qrResponse = await shareApi.getQRCode(shareUrl)
+    if (qrResponse.data.success) {
+      qrcodeImage.value = qrResponse.data.data.image
+    }
+  } catch (error) {
+    ElMessage.error('生成二维码失败')
+  }
+}
+
+const downloadQRCode = () => {
+  if (!qrcodeImage.value) return
+  
+  const link = document.createElement('a')
+  link.href = qrcodeImage.value
+  link.download = `share-post-${post.value.id}.png`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  ElMessage.success('二维码已下载')
 }
 
 onMounted(() => {
@@ -614,6 +756,154 @@ onMounted(() => {
 .report-btn:hover {
   color: var(--color-danger);
   background: rgba(255, 59, 48, 0.1);
+}
+
+.share-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.share-btn:hover {
+  color: var(--color-primary);
+  background: rgba(0, 113, 227, 0.1);
+}
+
+.share-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.share-option-item {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  background: var(--color-background);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.share-option-item:hover {
+  background: rgba(0, 113, 227, 0.05);
+  transform: translateX(4px);
+}
+
+.share-option-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+}
+
+.share-option-icon.link-icon {
+  background: rgba(0, 113, 227, 0.1);
+  color: var(--color-primary);
+}
+
+.share-option-icon.qrcode-icon {
+  background: rgba(52, 199, 89, 0.1);
+  color: var(--color-success);
+}
+
+.share-option-info {
+  flex: 1;
+  margin-left: 16px;
+}
+
+.share-option-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 4px;
+}
+
+.share-option-desc {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.share-option-arrow {
+  color: var(--color-text-tertiary);
+  font-size: 18px;
+}
+
+.share-link-preview {
+  padding-top: 16px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.share-link-preview-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 12px;
+}
+
+.share-link-preview-box {
+  padding: 16px;
+  background: var(--color-background);
+  border-radius: var(--radius-md);
+}
+
+.share-preview-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 8px;
+}
+
+.share-preview-desc {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin-bottom: 12px;
+}
+
+.share-preview-url {
+  margin-top: 12px;
+}
+
+.qrcode-preview {
+  padding-top: 16px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.qrcode-preview-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 12px;
+}
+
+.qrcode-preview-box {
+  text-align: center;
+  padding: 24px;
+  background: var(--color-background);
+  border-radius: var(--radius-md);
+}
+
+.qrcode-preview-box .qrcode-img {
+  width: 200px;
+  height: 200px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.qrcode-actions {
+  margin-top: 16px;
 }
 
 .comments-section {
