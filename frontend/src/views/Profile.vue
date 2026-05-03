@@ -15,6 +15,20 @@
         </button>
         <button 
           class="tab-btn" 
+          :class="{ active: activeTab === 'points' }"
+          @click="activeTab = 'points'"
+        >
+          积分中心
+        </button>
+        <button 
+          class="tab-btn" 
+          :class="{ active: activeTab === 'invite' }"
+          @click="activeTab = 'invite'"
+        >
+          邀请好友
+        </button>
+        <button 
+          class="tab-btn" 
           :class="{ active: activeTab === 'favorites' }"
           @click="activeTab = 'favorites'"
         >
@@ -67,6 +81,10 @@
             <div class="stat-item">
               <div class="stat-value">¥{{ user.balance }}</div>
               <div class="stat-label">账户余额</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value points-value">{{ user.points || 0 }}</div>
+              <div class="stat-label">积分</div>
             </div>
           </div>
 
@@ -166,6 +184,316 @@
                 {{ tx.transaction_type === 'recharge' ? '+' : '' }}¥{{ tx.amount }}
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="points-section" v-show="activeTab === 'points'">
+        <div class="section-header">
+          <h3 class="section-title">
+            <el-icon><Coin /></el-icon>
+            积分中心
+          </h3>
+        </div>
+
+        <div class="points-overview card">
+          <div class="points-header">
+            <div class="points-info">
+              <div class="points-display">
+                <span class="points-label">当前积分</span>
+                <span class="points-amount">{{ user?.points || 0 }}</span>
+              </div>
+              <div class="checkin-status" v-if="checkinStatus">
+                <span class="checkin-days">连续签到 {{ checkinStatus.continuous_days || 0 }} 天</span>
+                <button 
+                  class="checkin-btn" 
+                  :class="{ 'checked-in': checkinStatus.has_checked_in }"
+                  @click="handleCheckin"
+                  :disabled="checkinStatus.has_checked_in || checkingIn"
+                >
+                  <span v-if="checkingIn">签到中...</span>
+                  <span v-else-if="checkinStatus.has_checked_in">今日已签到</span>
+                  <span v-else>立即签到</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="checkin-rules" v-if="checkinStatus?.config">
+            <div class="rules-title">签到奖励规则</div>
+            <div class="rules-grid">
+              <div class="rule-item">
+                <span class="rule-label">每日签到</span>
+                <span class="rule-value">+{{ checkinStatus.config.daily_checkin_points }} 积分</span>
+              </div>
+              <div class="rule-item">
+                <span class="rule-label">连续签到奖励</span>
+                <span class="rule-value">每天 +{{ checkinStatus.config.continuous_bonus_base }} 积分</span>
+              </div>
+              <div class="rule-item">
+                <span class="rule-label">最多连续</span>
+                <span class="rule-value">{{ checkinStatus.config.max_continuous_days }} 天</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="exchange-section card">
+          <h3 class="section-title">积分兑换</h3>
+          <div class="exchange-grid">
+            <div class="exchange-item">
+              <div class="exchange-icon">
+                <el-icon><Wallet /></el-icon>
+              </div>
+              <div class="exchange-info">
+                <div class="exchange-title">兑换余额</div>
+                <div class="exchange-rate">
+                  {{ checkinStatus?.config?.points_to_balance_rate || 100 }} 积分 = {{ checkinStatus?.config?.balance_per_exchange || 1 }} 元
+                </div>
+              </div>
+              <div class="exchange-action">
+                <el-input-number 
+                  v-model="exchangeBalanceCount" 
+                  :min="1"
+                  :max="10"
+                  size="small"
+                />
+                <el-button 
+                  type="primary" 
+                  size="small"
+                  @click="handleExchangeBalance"
+                  :disabled="exchanging"
+                >
+                  兑换
+                </el-button>
+              </div>
+            </div>
+
+            <div class="exchange-item">
+              <div class="exchange-icon">
+                <el-icon><Document /></el-icon>
+              </div>
+              <div class="exchange-info">
+                <div class="exchange-title">兑换发布额度</div>
+                <div class="exchange-rate">
+                  {{ checkinStatus?.config?.points_to_posts_rate || 50 }} 积分 = {{ checkinStatus?.config?.posts_per_exchange || 1 }} 个
+                </div>
+              </div>
+              <div class="exchange-action">
+                <el-input-number 
+                  v-model="exchangePostsCount" 
+                  :min="1"
+                  :max="10"
+                  size="small"
+                />
+                <el-button 
+                  type="primary" 
+                  size="small"
+                  @click="handleExchangePosts"
+                  :disabled="exchanging"
+                >
+                  兑换
+                </el-button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="points-transactions-section card">
+          <h3 class="section-title">积分记录</h3>
+          <div class="points-transactions-list" v-if="pointsTransactions.length > 0">
+            <div 
+              v-for="pt in pointsTransactions" 
+              :key="pt.id"
+              class="points-transaction-item"
+            >
+              <div class="pt-info">
+                <div class="pt-type" :class="pt.points > 0 ? 'income' : 'expense'">
+                  <el-icon v-if="pt.points > 0"><Plus /></el-icon>
+                  <el-icon v-else><Minus /></el-icon>
+                </div>
+                <div class="pt-content">
+                  <div class="pt-description">{{ pt.description || pt.type_name }}</div>
+                  <div class="pt-time">{{ pt.created_at }}</div>
+                </div>
+              </div>
+              <div class="pt-amount" :class="pt.points > 0 ? 'income' : 'expense'">
+                {{ pt.points > 0 ? '+' : '' }}{{ pt.points }}
+              </div>
+            </div>
+          </div>
+          <div class="empty-state" v-else-if="!loadingPointsTransactions">
+            <p>暂无积分记录</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="invite-section" v-show="activeTab === 'invite'">
+        <div class="section-header">
+          <h3 class="section-title">
+            <el-icon><Share /></el-icon>
+            邀请好友
+          </h3>
+        </div>
+
+        <div class="invite-overview card">
+          <div class="invite-header">
+            <div class="invite-info">
+              <div class="invite-stats">
+                <div class="stat-item">
+                  <div class="stat-value">{{ inviteInfo?.total_invited || 0 }}</div>
+                  <div class="stat-label">已邀请用户</div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-value">¥{{ inviteInfo?.total_reward || 0 }}</div>
+                  <div class="stat-label">累计奖励</div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-value">{{ inviteInfo?.unclaimed_count || 0 }}</div>
+                  <div class="stat-label">待领取奖励</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="invite-rules" v-if="inviteConfig">
+            <div class="rules-title">邀请奖励规则</div>
+            <div class="rules-desc">
+              <p>每成功邀请一位好友注册，您将获得 <span class="highlight">¥{{ inviteConfig.invite_reward_balance }}</span> 奖励</p>
+              <p>被邀请的新用户也将获得 <span class="highlight">{{ inviteConfig.invited_new_user_bonus }}</span> 积分奖励</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="invite-code-section card">
+          <h3 class="section-title">我的邀请码</h3>
+          <div class="invite-code-display">
+            <div class="invite-code">{{ inviteInfo?.invite_code || '加载中...' }}</div>
+            <div class="invite-actions">
+              <el-button 
+                type="primary" 
+                @click="copyInviteCode"
+                :loading="copyingInviteCode"
+              >
+                <el-icon><CopyDocument /></el-icon>
+                复制邀请码
+              </el-button>
+              <el-button 
+                @click="generateShareLink"
+                :loading="generatingLink"
+              >
+                <el-icon><Link /></el-icon>
+                生成邀请链接
+              </el-button>
+              <el-button 
+                @click="generateInviteQRCode"
+                :loading="generatingQRCode"
+              >
+                <el-icon><Picture /></el-icon>
+                生成二维码
+              </el-button>
+            </div>
+          </div>
+
+          <el-dialog 
+            v-model="showQRCodeDialog" 
+            title="邀请二维码"
+            width="400px"
+          >
+            <div class="qrcode-display">
+              <img v-if="qrcodeImage" :src="qrcodeImage" alt="邀请二维码" class="qrcode-img" />
+              <p class="qrcode-desc">扫描二维码即可注册成为您的邀请用户</p>
+            </div>
+            <template #footer>
+              <el-button @click="showQRCodeDialog = false">关闭</el-button>
+              <el-button type="primary" @click="downloadQRCode">
+                <el-icon><Download /></el-icon>
+                保存二维码
+              </el-button>
+            </template>
+          </el-dialog>
+
+          <el-dialog 
+            v-model="showShareLinkDialog" 
+            title="邀请链接"
+            width="500px"
+          >
+            <div class="share-link-display">
+              <div class="share-link-preview">
+                <div class="share-link-title" v-if="shareInfo?.title">{{ shareInfo.title }}</div>
+                <div class="share-link-desc" v-if="shareInfo?.description">{{ shareInfo.description }}</div>
+                <div class="share-link-url">
+                  <el-input 
+                    :value="shareInfo?.url" 
+                    readonly
+                    placeholder="点击生成邀请链接"
+                  >
+                    <template #append>
+                      <el-button 
+                        @click="copyShareLink"
+                        :disabled="!shareInfo?.url"
+                      >
+                        <el-icon><CopyDocument /></el-icon>
+                        复制
+                      </el-button>
+                    </template>
+                  </el-input>
+                </div>
+              </div>
+            </div>
+          </el-dialog>
+        </div>
+
+        <div class="invite-records-section card">
+          <div class="records-header">
+            <h3 class="section-title">邀请记录</h3>
+            <el-button 
+              v-if="inviteInfo?.unclaimed_count > 0"
+              type="primary" 
+              size="small"
+              @click="claimAllRewards"
+              :disabled="claimingRewards"
+            >
+              <el-icon><Wallet /></el-icon>
+              领取所有奖励
+            </el-button>
+          </div>
+          
+          <div class="invite-records-list" v-if="inviteRecords.length > 0">
+            <div 
+              v-for="record in inviteRecords" 
+              :key="record.id"
+              class="invite-record-item"
+            >
+              <div class="record-user">
+                <div class="user-avatar">
+                  <img v-if="record.invited_user?.avatar" :src="`/uploads/${record.invited_user.avatar}`" alt="" class="avatar-img" />
+                  <el-icon v-else><User /></el-icon>
+                </div>
+                <div class="user-info">
+                  <div class="username">{{ record.invited_user?.username || '未知用户' }}</div>
+                  <div class="register-time">注册时间: {{ record.created_at }}</div>
+                </div>
+              </div>
+              <div class="record-reward">
+                <div class="reward-amount" :class="record.reward_claimed ? 'claimed' : 'unclaimed'">
+                  ¥{{ record.reward_amount || 0 }}
+                </div>
+                <el-button 
+                  v-if="!record.reward_claimed"
+                  type="primary" 
+                  size="small"
+                  @click="claimReward(record)"
+                  :disabled="claimingRewards"
+                >
+                  领取
+                </el-button>
+                <span v-else class="claimed-text">已领取</span>
+              </div>
+            </div>
+          </div>
+          <div class="empty-state" v-else-if="!loadingInviteRecords">
+            <p>暂无邀请记录，快去邀请好友吧！</p>
           </div>
         </div>
       </div>
@@ -359,11 +687,14 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { User, Wallet, TrendCharts, Plus, Minus, Camera, Star, View, ArrowDown, ArrowRight, Document } from '@element-plus/icons-vue'
-import { userApi, postApi } from '../services/api'
+import { 
+  User, Wallet, TrendCharts, Plus, Minus, Camera, Star, View, ArrowDown, ArrowRight, Document,
+  Coin, Share, CopyDocument, Link, Picture, Download
+} from '@element-plus/icons-vue'
+import { userApi, postApi, shareApi } from '../services/api'
 
 const router = useRouter()
 
@@ -389,6 +720,27 @@ const passwordForm = reactive({
   newPassword: '',
   confirmPassword: ''
 })
+
+const checkinStatus = ref(null)
+const checkingIn = ref(false)
+const exchangeBalanceCount = ref(1)
+const exchangePostsCount = ref(1)
+const exchanging = ref(false)
+const pointsTransactions = ref([])
+const loadingPointsTransactions = ref(false)
+
+const inviteInfo = ref(null)
+const inviteConfig = ref(null)
+const inviteRecords = ref([])
+const loadingInviteRecords = ref(false)
+const copyingInviteCode = ref(false)
+const generatingLink = ref(false)
+const generatingQRCode = ref(false)
+const claimingRewards = ref(false)
+const showQRCodeDialog = ref(false)
+const showShareLinkDialog = ref(false)
+const qrcodeImage = ref('')
+const shareInfo = ref(null)
 
 const loadProfile = async () => {
   try {
@@ -578,6 +930,294 @@ const formatTime = (time) => {
   if (!time) return ''
   return time.replace(' GMT', '')
 }
+
+const loadCheckinStatus = async () => {
+  try {
+    const response = await userApi.getCheckinStatus()
+    if (response.data.success) {
+      checkinStatus.value = response.data.data
+      if (response.data.config) {
+        checkinStatus.value.config = response.data.config
+      }
+    }
+  } catch (error) {
+    console.error('加载签到状态失败:', error)
+  }
+}
+
+const handleCheckin = async () => {
+  if (checkinStatus.value?.has_checked_in || checkingIn.value) return
+  
+  checkingIn.value = true
+  try {
+    const response = await userApi.checkin()
+    if (response.data.success) {
+      ElMessage.success(`签到成功！获得 ${response.data.data.points} 积分`)
+      checkinStatus.value = response.data.data
+      if (response.data.config) {
+        checkinStatus.value.config = response.data.config
+      }
+      user.value.points = (user.value.points || 0) + response.data.data.points
+      loadPointsTransactions()
+    }
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || '签到失败')
+  } finally {
+    checkingIn.value = false
+  }
+}
+
+const loadPointsTransactions = async () => {
+  loadingPointsTransactions.value = true
+  try {
+    const response = await userApi.getPointsTransactions({
+      page: 1,
+      per_page: 20
+    })
+    if (response.data.success) {
+      pointsTransactions.value = response.data.transactions || []
+    }
+  } catch (error) {
+    console.error('加载积分记录失败:', error)
+  } finally {
+    loadingPointsTransactions.value = false
+  }
+}
+
+const handleExchangeBalance = async () => {
+  if (exchanging.value) return
+  
+  const pointsNeeded = (checkinStatus.value?.config?.points_to_balance_rate || 100) * exchangeBalanceCount.value
+  if ((user.value?.points || 0) < pointsNeeded) {
+    ElMessage.warning(`积分不足，需要 ${pointsNeeded} 积分`)
+    return
+  }
+  
+  exchanging.value = true
+  try {
+    const response = await userApi.exchangePointsToBalance({
+      count: exchangeBalanceCount.value
+    })
+    if (response.data.success) {
+      ElMessage.success(`兑换成功！获得 ¥${exchangeBalanceCount.value}`)
+      user.value.points = response.data.user.points
+      user.value.balance = response.data.user.balance
+      loadPointsTransactions()
+      loadProfile()
+    }
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || '兑换失败')
+  } finally {
+    exchanging.value = false
+  }
+}
+
+const handleExchangePosts = async () => {
+  if (exchanging.value) return
+  
+  const pointsNeeded = (checkinStatus.value?.config?.points_to_posts_rate || 50) * exchangePostsCount.value
+  if ((user.value?.points || 0) < pointsNeeded) {
+    ElMessage.warning(`积分不足，需要 ${pointsNeeded} 积分`)
+    return
+  }
+  
+  exchanging.value = true
+  try {
+    const response = await userApi.exchangePointsToPosts({
+      count: exchangePostsCount.value
+    })
+    if (response.data.success) {
+      ElMessage.success(`兑换成功！获得 ${exchangePostsCount.value} 个发布额度`)
+      user.value.points = response.data.user.points
+      user.value.posts_limit = response.data.user.posts_limit
+      loadPointsTransactions()
+      loadProfile()
+    }
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || '兑换失败')
+  } finally {
+    exchanging.value = false
+  }
+}
+
+const loadInviteInfo = async () => {
+  try {
+    const response = await userApi.getInviteInfo()
+    if (response.data.success) {
+      inviteInfo.value = response.data.data
+      inviteConfig.value = response.data.config
+    }
+  } catch (error) {
+    console.error('加载邀请信息失败:', error)
+  }
+}
+
+const loadInviteRecords = async () => {
+  loadingInviteRecords.value = true
+  try {
+    const response = await userApi.getInviteRecords({
+      page: 1,
+      per_page: 20
+    })
+    if (response.data.success) {
+      inviteRecords.value = response.data.records || []
+    }
+  } catch (error) {
+    console.error('加载邀请记录失败:', error)
+  } finally {
+    loadingInviteRecords.value = false
+  }
+}
+
+const copyInviteCode = async () => {
+  if (!inviteInfo.value?.invite_code) return
+  
+  copyingInviteCode.value = true
+  try {
+    await navigator.clipboard.writeText(inviteInfo.value.invite_code)
+    ElMessage.success('邀请码已复制到剪贴板')
+  } catch (error) {
+    ElMessage.error('复制失败，请手动复制')
+  } finally {
+    copyingInviteCode.value = false
+  }
+}
+
+const generateShareLink = async () => {
+  if (generatingLink.value) return
+  
+  generatingLink.value = true
+  try {
+    const response = await shareApi.getShareLink('invite', user.value.id)
+    if (response.data.success) {
+      shareInfo.value = response.data.data
+      showShareLinkDialog.value = true
+    }
+  } catch (error) {
+    ElMessage.error('生成分享链接失败')
+  } finally {
+    generatingLink.value = false
+  }
+}
+
+const copyShareLink = async () => {
+  if (!shareInfo.value?.url) return
+  
+  try {
+    await navigator.clipboard.writeText(shareInfo.value.url)
+    ElMessage.success('链接已复制到剪贴板')
+  } catch (error) {
+    ElMessage.error('复制失败，请手动复制')
+  }
+}
+
+const generateInviteQRCode = async () => {
+  if (generatingQRCode.value) return
+  
+  generatingQRCode.value = true
+  try {
+    const shareResponse = await shareApi.getShareLink('invite', user.value.id)
+    if (shareResponse.data.success) {
+      const qrResponse = await shareApi.getQRCode(shareResponse.data.data.url)
+      if (qrResponse.data.success) {
+        qrcodeImage.value = qrResponse.data.data.image
+        showQRCodeDialog.value = true
+      }
+    }
+  } catch (error) {
+    ElMessage.error('生成二维码失败')
+  } finally {
+    generatingQRCode.value = false
+  }
+}
+
+const downloadQRCode = () => {
+  if (!qrcodeImage.value) return
+  
+  const link = document.createElement('a')
+  link.href = qrcodeImage.value
+  link.download = `invite-qrcode-${inviteInfo.value?.invite_code || 'code'}.png`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  ElMessage.success('二维码已下载')
+}
+
+const claimReward = async (record) => {
+  if (claimingRewards.value || record.reward_claimed) return
+  
+  claimingRewards.value = true
+  try {
+    const response = await userApi.claimInviteReward(record.id)
+    if (response.data.success) {
+      ElMessage.success(`领取成功！获得 ¥${record.reward_amount}`)
+      record.reward_claimed = true
+      loadInviteInfo()
+      loadProfile()
+    }
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || '领取失败')
+  } finally {
+    claimingRewards.value = false
+  }
+}
+
+const claimAllRewards = async () => {
+  if (claimingRewards.value) return
+  
+  const unclaimedRecords = inviteRecords.value.filter(r => !r.reward_claimed)
+  if (unclaimedRecords.length === 0) {
+    ElMessage.warning('没有可领取的奖励')
+    return
+  }
+  
+  try {
+    await ElMessageBox.confirm(
+      `确定要领取 ${unclaimedRecords.length} 个奖励吗？`,
+      '确认领取',
+      {
+        confirmButtonText: '确定领取',
+        cancelButtonText: '取消',
+        type: 'success'
+      }
+    )
+    
+    claimingRewards.value = true
+    const response = await userApi.claimAllInviteRewards()
+    if (response.data.success) {
+      ElMessage.success(response.data.message)
+      unclaimedRecords.forEach(r => {
+        r.reward_claimed = true
+      })
+      loadInviteInfo()
+      loadProfile()
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error(error.response?.data?.message || '领取失败')
+    }
+  } finally {
+    claimingRewards.value = false
+  }
+}
+
+watch(activeTab, (newTab) => {
+  if (newTab === 'points') {
+    if (!checkinStatus.value) {
+      loadCheckinStatus()
+    }
+    if (pointsTransactions.value.length === 0) {
+      loadPointsTransactions()
+    }
+  } else if (newTab === 'invite') {
+    if (!inviteInfo.value) {
+      loadInviteInfo()
+    }
+    if (inviteRecords.value.length === 0) {
+      loadInviteRecords()
+    }
+  }
+})
 
 onMounted(() => {
   loadProfile()
@@ -1475,6 +2115,569 @@ onMounted(() => {
   
   .edit-log-item {
     padding: 16px;
+  }
+}
+
+.points-section,
+.invite-section {
+  width: 100%;
+}
+
+.section-header {
+  margin-bottom: 24px;
+}
+
+.section-header .section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-xl);
+}
+
+.points-overview {
+  padding: 32px;
+  margin-bottom: 24px;
+}
+
+.points-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.points-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.points-display {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.points-label {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+.points-amount {
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.points-value {
+  color: var(--color-primary) !important;
+}
+
+.checkin-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.checkin-days {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+.checkin-btn {
+  padding: 12px 32px;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  background: var(--color-primary);
+  color: white;
+}
+
+.checkin-btn:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.checkin-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.checkin-btn.checked-in {
+  background: var(--color-success);
+}
+
+.checkin-rules {
+  padding: 16px;
+  background: var(--color-background);
+  border-radius: var(--radius-md);
+}
+
+.rules-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 12px;
+}
+
+.rules-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.rule-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rule-label {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.rule-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.exchange-section {
+  padding: 32px;
+  margin-bottom: 24px;
+}
+
+.exchange-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.exchange-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px;
+  background: var(--color-background);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-light);
+}
+
+.exchange-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(0, 113, 227, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-primary);
+  font-size: 24px;
+}
+
+.exchange-info {
+  flex: 1;
+  margin-left: 16px;
+}
+
+.exchange-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 4px;
+}
+
+.exchange-rate {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.exchange-action {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.points-transactions-section {
+  padding: 32px;
+}
+
+.points-transactions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.points-transaction-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.points-transaction-item:last-child {
+  border-bottom: none;
+}
+
+.pt-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pt-type {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.pt-type.income {
+  background: rgba(52, 199, 89, 0.1);
+  color: var(--color-success);
+}
+
+.pt-type.expense {
+  background: rgba(255, 59, 48, 0.1);
+  color: var(--color-danger);
+}
+
+.pt-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pt-description {
+  font-size: 15px;
+  color: var(--color-text);
+}
+
+.pt-time {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.pt-amount {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.pt-amount.income {
+  color: var(--color-success);
+}
+
+.pt-amount.expense {
+  color: var(--color-danger);
+}
+
+.invite-overview {
+  padding: 32px;
+  margin-bottom: 24px;
+}
+
+.invite-header {
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.invite-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.invite-stats .stat-item {
+  text-align: center;
+  padding: 20px;
+  background: var(--color-background);
+  border-radius: var(--radius-md);
+}
+
+.invite-stats .stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--color-primary);
+  margin-bottom: 4px;
+}
+
+.invite-stats .stat-label {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.invite-rules {
+  padding: 16px;
+  background: var(--color-background);
+  border-radius: var(--radius-md);
+}
+
+.invite-rules .rules-desc {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.invite-rules .rules-desc p {
+  font-size: 14px;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.invite-rules .highlight {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.invite-code-section {
+  padding: 32px;
+  margin-bottom: 24px;
+}
+
+.invite-code-display {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px;
+  background: var(--color-background);
+  border-radius: var(--radius-md);
+  border: 2px dashed var(--color-primary);
+}
+
+.invite-code {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--color-primary);
+  letter-spacing: 4px;
+  font-family: 'Courier New', monospace;
+}
+
+.invite-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.qrcode-display {
+  text-align: center;
+  padding: 24px;
+}
+
+.qrcode-img {
+  width: 200px;
+  height: 200px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.qrcode-desc {
+  margin-top: 16px;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+.share-link-display {
+  padding: 24px;
+}
+
+.share-link-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.share-link-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.share-link-desc {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+.share-link-url {
+  margin-top: 16px;
+}
+
+.invite-records-section {
+  padding: 32px;
+}
+
+.records-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.records-header .section-title {
+  margin-bottom: 0;
+}
+
+.invite-records-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.invite-record-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: var(--color-background);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-light);
+}
+
+.record-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-primary) 0%, #5856d6 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 20px;
+  overflow: hidden;
+}
+
+.user-avatar .avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.user-info .username {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.register-time {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.record-reward {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.reward-amount {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.reward-amount.unclaimed {
+  color: var(--color-primary);
+}
+
+.reward-amount.claimed {
+  color: var(--color-text-secondary);
+  text-decoration: line-through;
+}
+
+.claimed-text {
+  font-size: 14px;
+  color: var(--color-success);
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .points-header {
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .points-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    width: 100%;
+  }
+  
+  .checkin-status {
+    align-items: flex-start;
+    width: 100%;
+  }
+  
+  .checkin-btn {
+    width: 100%;
+  }
+  
+  .rules-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .exchange-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  
+  .exchange-action {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .invite-stats {
+    grid-template-columns: 1fr;
+  }
+  
+  .invite-code-display {
+    flex-direction: column;
+    gap: 20px;
+  }
+  
+  .invite-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  
+  .invite-actions .el-button {
+    flex: 1;
+    min-width: 120px;
+  }
+  
+  .invite-record-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .record-reward {
+    width: 100%;
+    justify-content: space-between;
   }
 }
 </style>

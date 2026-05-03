@@ -8,5 +8,8 @@ from models.edit_log import EditLog
 from models.tag import Tag, PostTag
 from models.report import Report
 from models.announcement import Announcement
+from models.checkin_record import CheckinRecord
+from models.points_transaction import PointsTransaction
+from models.invite_record import InviteRecord
 
-__all__ = ['User', 'Post', 'Transaction', 'Comment', 'Favorite', 'Admin', 'EditLog', 'Tag', 'PostTag', 'Report', 'Announcement']
+__all__ = ['User', 'Post', 'Transaction', 'Comment', 'Favorite', 'Admin', 'EditLog', 'Tag', 'PostTag', 'Report', 'Announcement', 'CheckinRecord', 'PointsTransaction', 'InviteRecord']

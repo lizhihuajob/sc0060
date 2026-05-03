@@ -56,6 +56,15 @@
             />
           </el-form-item>
 
+          <el-form-item prop="inviteCode">
+            <el-input 
+              v-model="form.inviteCode" 
+              placeholder="邀请码 (可选)" 
+              size="large"
+              prefix-icon="Share"
+            />
+          </el-form-item>
+
           <el-form-item>
             <el-button 
               type="primary" 
@@ -79,13 +88,15 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, computed, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { Share } from '@element-plus/icons-vue'
 import { authApi } from '../services/api'
 import { useUserStore } from '../stores/userStore'
 
 const router = useRouter()
+const route = useRoute()
 const formRef = ref(null)
 const loading = ref(false)
 const { setUser } = useUserStore()
@@ -94,7 +105,8 @@ const form = reactive({
   username: '',
   email: '',
   password: '',
-  confirmPassword: ''
+  confirmPassword: '',
+  inviteCode: ''
 })
 
 const validateConfirmPassword = (rule, value, callback) => {
@@ -134,7 +146,8 @@ const handleRegister = async () => {
           username: form.username,
           email: form.email || null,
           password: form.password,
-          confirm_password: form.confirmPassword
+          confirm_password: form.confirmPassword,
+          invite_code: form.inviteCode || null
         })
         if (response.data.success) {
           setUser(response.data.user)
@@ -149,6 +162,13 @@ const handleRegister = async () => {
     }
   })
 }
+
+onMounted(() => {
+  const inviteCodeFromQuery = route.query.invite_code
+  if (inviteCodeFromQuery) {
+    form.inviteCode = inviteCodeFromQuery
+  }
+})
 </script>
 
 <style scoped>

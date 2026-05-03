@@ -86,7 +86,20 @@ export const userApi = {
   uploadAvatar: (data) => apiClient.post('/user/avatar', data, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
-  changePassword: (data) => apiClient.put('/user/password', data)
+  changePassword: (data) => apiClient.put('/user/password', data),
+  
+  checkin: () => apiClient.post('/user/checkin'),
+  getCheckinStatus: () => apiClient.get('/user/checkin/status'),
+  getCheckinHistory: (params) => apiClient.get('/user/checkin/history', { params }),
+  
+  getPointsTransactions: (params) => apiClient.get('/user/points/transactions', { params }),
+  exchangePointsToBalance: (data) => apiClient.post('/user/points/exchange/balance', data),
+  exchangePointsToPosts: (data) => apiClient.post('/user/points/exchange/posts', data),
+  
+  getInviteInfo: () => apiClient.get('/user/invite'),
+  getInviteRecords: (params) => apiClient.get('/user/invite/records', { params }),
+  claimInviteReward: (recordId) => apiClient.post('/user/invite/claim', { record_id: recordId }),
+  claimAllInviteRewards: () => apiClient.post('/user/invite/claim', {})
 }
 
 export const configApi = {
@@ -106,6 +119,11 @@ export const announcementApi = {
 
 export const tagApi = {
   getAll: () => apiClient.get('/tags')
+}
+
+export const shareApi = {
+  getShareLink: (type, id) => apiClient.get('/share/link', { params: { type, id } }),
+  getQRCode: (url) => apiClient.get('/share/qrcode', { params: { url } })
 }
 
 export default apiClient
