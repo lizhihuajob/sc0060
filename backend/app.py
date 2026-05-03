@@ -67,7 +67,7 @@ def get_current_user_info():
 
 @app.route('/api/auth/register', methods=['POST'])
 def register():
-    data = request.get_json()
+    data = request.get_json() or {}
     username = data.get('username', '').strip()
     password = data.get('password', '')
     confirm_password = data.get('confirm_password', '')
@@ -112,7 +112,7 @@ def register():
 
 @app.route('/api/auth/login', methods=['POST'])
 def login():
-    data = request.get_json()
+    data = request.get_json() or {}
     username = data.get('username', '').strip()
     password = data.get('password', '')
     
@@ -529,7 +529,7 @@ def create_comment(post_id):
     if not post.is_visible_to(user):
         return jsonify({'success': False, 'message': '您没有权限查看该公告'}), 403
     
-    data = request.get_json()
+    data = request.get_json() or {}
     content = data.get('content', '').strip()
     parent_id = data.get('parent_id')
     reply_to_user_id = data.get('reply_to_user_id')
@@ -623,7 +623,7 @@ def get_user_edit_logs():
 def upgrade():
     user = get_current_user()
     
-    data = request.get_json()
+    data = request.get_json() or {}
     target_level = data.get('level', '')
     
     if target_level not in Config.USER_LEVELS:
@@ -661,7 +661,7 @@ def upgrade():
 def recharge():
     user = get_current_user()
     
-    data = request.get_json()
+    data = request.get_json() or {}
     amount = data.get('amount', 0)
     
     try:
@@ -720,7 +720,7 @@ def upload_avatar():
 def change_password():
     user = get_current_user()
     
-    data = request.get_json()
+    data = request.get_json() or {}
     old_password = data.get('old_password', '')
     new_password = data.get('new_password', '')
     confirm_password = data.get('confirm_password', '')
@@ -821,7 +821,7 @@ def get_points_transactions():
 @login_required
 def exchange_points_to_balance():
     user = get_current_user()
-    data = request.get_json()
+    data = request.get_json() or {}
     exchange_count = data.get('count', 1)
     
     try:
@@ -846,7 +846,7 @@ def exchange_points_to_balance():
 @login_required
 def exchange_points_to_posts():
     user = get_current_user()
-    data = request.get_json()
+    data = request.get_json() or {}
     exchange_count = data.get('count', 1)
     
     try:
@@ -904,7 +904,7 @@ def get_invite_records():
 @login_required
 def claim_invite_rewards():
     user = get_current_user()
-    data = request.get_json()
+    data = request.get_json() or {}
     record_id = data.get('record_id')
     
     if not record_id:
@@ -1106,7 +1106,7 @@ def get_user_favorites():
 @login_required
 def create_report():
     user = get_current_user()
-    data = request.get_json()
+    data = request.get_json() or {}
     
     target_type = data.get('target_type', '').strip()
     target_id = data.get('target_id')
