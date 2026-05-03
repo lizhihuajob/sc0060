@@ -36,6 +36,22 @@ class Config:
         'max_count': 3
     }
     
+    POINTS_CONFIG = {
+        'daily_checkin_points': 10,
+        'continuous_bonus_base': 5,
+        'max_continuous_days': 7,
+        'points_to_balance_rate': 100,
+        'points_to_posts_rate': 50,
+        'balance_per_exchange': 1,
+        'posts_per_exchange': 1
+    }
+    
+    INVITE_CONFIG = {
+        'invite_reward_balance': 5,
+        'invited_new_user_bonus': 10,
+        'invite_code_length': 8
+    }
+    
     VIEW_PERMISSIONS = {
         'all': '所有用户',
         'registered': '平台注册者',
